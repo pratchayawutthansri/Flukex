@@ -26,11 +26,11 @@
 | Background | `#FEF2F2` | `--color-background` |
 | Foreground | `#450A0A` | `--color-foreground` |
 | Muted | `#F0EDF1` | `--color-muted` |
-| Border | `#FECACA` | `--color-border` |
+| Border | `#E5E7EB` | `--color-border` |
 | Destructive | `#DC2626` | `--color-destructive` |
-| Ring | `#DC2626` | `--color-ring` |
+| Ring | `#64748B` | `--color-ring` |
 
-**Color Notes:** Appetizing red + warm gold [Accent adjusted from #CA8A04 for WCAG 3:1]
+**Color Notes:** Appetizing red + warm gold [Accent adjusted from #CA8A04 for WCAG 3:1]. Neutral gray is used for borders and focus rings so red remains reserved for primary actions and errors.
 
 ### Typography
 
