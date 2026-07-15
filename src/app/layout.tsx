@@ -37,7 +37,7 @@ const softwareSchema = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="th" suppressHydrationWarning>
+    <html lang="th" suppressHydrationWarning data-scroll-behavior="smooth">
       <body>
         <a href="#main-content" className="fixed left-3 top-3 z-[100] -translate-y-24 rounded-lg bg-card px-4 py-2 font-semibold shadow-lg focus:translate-y-0">ข้ามไปเนื้อหาหลัก</a>
         <AppProviders>{children}</AppProviders>

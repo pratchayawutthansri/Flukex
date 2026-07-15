@@ -5,6 +5,7 @@ import { Toaster, toast } from "sonner";
 import { useDemoStore } from "@/store/demo-store";
 import { services } from "@/services/container";
 import type { NotificationInput, RealtimeEvent } from "@/services/contracts";
+import { AuthSessionProvider } from "@/components/auth/auth-session-provider";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const addNotification = useDemoStore((state) => state.addNotification);
@@ -25,9 +26,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }), []);
 
   return (
-    <>
+    <AuthSessionProvider>
       {children}
       <Toaster richColors closeButton position="top-right" toastOptions={{ duration: 4200 }} />
-    </>
+    </AuthSessionProvider>
   );
 }

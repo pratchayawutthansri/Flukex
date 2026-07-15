@@ -25,14 +25,25 @@ export interface DemoData {
 
 const entityDates = { createdAt: CREATED_AT, updatedAt: CREATED_AT };
 
-export const DEMO_ACCOUNTS = [
+export const TENANT_DEMO_ACCOUNTS = [
   { email: "owner@demo.com", password: "demo1234", role: "OWNER", name: "คุณมินตรา (เจ้าของร้าน)" },
+  { email: "manager@demo.com", password: "demo1234", role: "MANAGER", name: "คุณเมย์ (ผู้จัดการร้าน)" },
   { email: "cashier@demo.com", password: "demo1234", role: "CASHIER", name: "คุณปาล์ม (แคชเชียร์)" },
   { email: "kitchen@demo.com", password: "demo1234", role: "KITCHEN", name: "เชฟนนท์ (ครัว)" },
+  { email: "bar@demo.com", password: "demo1234", role: "BAR", name: "คุณบีม (บาร์)" },
 ] as const;
 
+export const PLATFORM_ADMIN_ACCOUNT = {
+  email: "admin@flukex.demo",
+  password: "demo1234",
+  role: "PLATFORM_ADMIN",
+  name: "Flukex Platform Admin",
+} as const;
+
+export const DEMO_ACCOUNTS = [...TENANT_DEMO_ACCOUNTS, PLATFORM_ADMIN_ACCOUNT] as const;
+
 export const createDefaultDemoData = (): DemoData => ({
-  users: DEMO_ACCOUNTS.map((account, index) => ({
+  users: TENANT_DEMO_ACCOUNTS.map((account, index) => ({
     id: `user_${index + 1}`,
     tenantId: TENANT_ID,
     name: account.name,

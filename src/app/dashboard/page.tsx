@@ -1,2 +1,2 @@
-import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
-export default function DashboardPage() { return <DashboardOverview/>; }
+import { RoleDashboard } from "@/components/dashboard/role-dashboard";
+export default function DashboardPage() { return <RoleDashboard/>; }

@@ -1,6 +1,8 @@
 export type Locale = "th" | "en";
 export type PlanId = "free" | "starter" | "professional";
 export type UserRole = "OWNER" | "MANAGER" | "CASHIER" | "KITCHEN" | "BAR";
+export type PlatformRole = "PLATFORM_ADMIN";
+export type SessionRole = UserRole | PlatformRole;
 export type Station = "KITCHEN" | "BAR";
 export type TableStatus = "AVAILABLE" | "OCCUPIED" | "BILL_REQUESTED" | "CLEANING" | "DISABLED";
 export type OrderStatus = "WAITING" | "PREPARING" | "READY" | "SERVED" | "CANCELLED";
@@ -23,8 +25,9 @@ export interface DemoUser extends TenantEntity {
 export interface DemoSession {
   userId: string;
   tenantId: string;
+  name: string;
   email: string;
-  role: UserRole;
+  role: SessionRole;
   expiresAt: string;
 }
 

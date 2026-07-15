@@ -3,7 +3,7 @@ import type { DemoSession } from "@/domain/types";
 import type { AuthCredentials, AuthService, RegistrationInput } from "./contracts";
 import { browserStorage, STORAGE_KEYS } from "./storage";
 
-interface RegisteredUser extends RegistrationInput { id: string }
+interface RegisteredUser extends RegistrationInput { id: string; tenantId: string }
 
 const wait = (duration = 350) => new Promise((resolve) => setTimeout(resolve, duration));
 
@@ -19,7 +19,8 @@ export class MockAuthService implements AuthService {
 
     const session: DemoSession = {
       userId: registered?.id ?? `user_${account?.role.toLowerCase()}`,
-      tenantId: DEMO_TENANT_ID,
+      tenantId: registered?.tenantId ?? (account?.role === "PLATFORM_ADMIN" ? "platform_flukex" : DEMO_TENANT_ID),
+      name: registered?.name ?? account?.name ?? credentials.email,
       email: credentials.email,
       role: account?.role ?? "OWNER",
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -32,7 +33,7 @@ export class MockAuthService implements AuthService {
     await wait(500);
     const users = browserStorage.get<RegisteredUser[]>(STORAGE_KEYS.registeredUsers, []);
     if (users.some((user) => user.email === input.email)) throw new Error("อีเมลนี้ถูกลงทะเบียนในเดโมแล้ว");
-    const user = { ...input, id: `registered_${Date.now()}` };
+    const user = { ...input, id: `registered_${Date.now()}`, tenantId: `tenant_${Date.now()}` };
     browserStorage.set(STORAGE_KEYS.registeredUsers, [...users, user]);
     return this.login(input);
   }
@@ -44,7 +45,8 @@ export class MockAuthService implements AuthService {
   async getSession() {
     const session = browserStorage.get<DemoSession | null>(STORAGE_KEYS.session, null);
     if (!session || new Date(session.expiresAt).getTime() < Date.now()) return null;
-    return session;
+    const account = DEMO_ACCOUNTS.find((item) => item.email === session.email);
+    return { ...session, name: session.name || account?.name || session.email };
   }
 
   async resetPassword(email: string) {
