@@ -18,12 +18,25 @@ export interface RegistrationInput extends AuthCredentials {
   restaurantName: string;
 }
 
+export interface MemberPasswordResetInput {
+  email: string;
+  name: string;
+  tenantId: string;
+  restaurantName: string;
+}
+
+export interface TemporaryCredential {
+  email: string;
+  temporaryPassword: string;
+}
+
 export interface AuthService {
   login(credentials: AuthCredentials): Promise<DemoSession>;
   register(input: RegistrationInput): Promise<DemoSession>;
   logout(): Promise<void>;
   getSession(): Promise<DemoSession | null>;
   resetPassword(email: string): Promise<void>;
+  resetMemberPassword(input: MemberPasswordResetInput): Promise<TemporaryCredential>;
 }
 
 export interface Repository<T extends { id: string }> {

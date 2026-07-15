@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { DemoSession } from "@/domain/types";
 import { services } from "@/services/container";
 import { STORAGE_KEYS } from "@/services/storage";
+import { useDemoStore } from "@/store/demo-store";
 
 type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -17,18 +18,30 @@ interface AuthSessionContextValue {
 
 const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
 
+function activateSessionTenant(session: DemoSession | null) {
+  if (!session || session.role === "PLATFORM_ADMIN") return;
+  useDemoStore.getState().activateTenant({
+    tenantId: session.tenantId,
+    ownerName: session.name,
+    ownerEmail: session.email,
+    restaurantName: session.restaurantName,
+  });
+}
+
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<DemoSession | null>(null);
   const [status, setStatus] = useState<SessionStatus>("loading");
 
   const refreshSession = useCallback(async () => {
     const current = await services.auth.getSession();
+    activateSessionTenant(current);
     setSession(current);
     setStatus(current ? "authenticated" : "unauthenticated");
     return current;
   }, []);
 
   const establishSession = useCallback((nextSession: DemoSession) => {
+    activateSessionTenant(nextSession);
     setSession(nextSession);
     setStatus("authenticated");
   }, []);
@@ -43,6 +56,7 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     let active = true;
     void services.auth.getSession().then((current) => {
       if (!active) return;
+      activateSessionTenant(current);
       setSession(current);
       setStatus(current ? "authenticated" : "unauthenticated");
     });

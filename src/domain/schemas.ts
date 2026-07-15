@@ -9,7 +9,11 @@ export const registrationSchema = z.object({
   name: z.string().min(2, "กรุณากรอกชื่อ"),
   email: z.email("กรุณากรอกอีเมลให้ถูกต้อง"),
   password: z.string().min(6, "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"),
+  confirmPassword: z.string().min(1, "กรุณายืนยันรหัสผ่าน"),
   restaurantName: z.string().min(2, "กรุณากรอกชื่อร้าน"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "รหัสผ่านทั้งสองช่องไม่ตรงกัน",
+  path: ["confirmPassword"],
 });
 
 export const productSchema = z.object({

@@ -57,7 +57,6 @@ const nav = [
 const quick = [
   { href: "/pos", label: "เปิด POS", icon: Boxes, public: false },
   { href: "/kitchen", label: "จอครัว", icon: ChefHat, public: false },
-  { href: "/order/demo-restaurant/table/table-01", label: "QR เมนู", icon: QrCode, public: true },
 ] as const;
 
 type NavigationItem = (typeof nav)[number];
@@ -84,8 +83,16 @@ function NavLink({ item, onClick }: { item: NavigationItem; onClick?: () => void
 function Sidebar({ role, onNavigate }: { role: SessionRole; onNavigate?: () => void }) {
   const [resetOpen, setResetOpen] = useState(false);
   const resetDemo = useDemoStore((state) => state.resetDemo);
+  const restaurant = useDemoStore((state) => state.restaurants[0]);
+  const firstTable = useDemoStore((state) => state.tables[0]);
   const visibleNav = nav.filter((item) => canAccessRoute(role, item.href));
-  const visibleQuick = quick.filter((item) => item.public || canAccessRoute(role, item.href));
+  const qrItem = {
+    href: restaurant && firstTable ? `/order/${restaurant.slug}/table/${firstTable.token}` : "/dashboard/tables",
+    label: firstTable ? "QR เมนู" : "เพิ่มโต๊ะและ QR",
+    icon: QrCode,
+    public: true,
+  };
+  const visibleQuick = [...quick, qrItem].filter((item) => item.public || canAccessRoute(role, item.href));
 
   return (
     <div className="flex h-full flex-col bg-card">
@@ -117,7 +124,7 @@ function Sidebar({ role, onNavigate }: { role: SessionRole; onNavigate?: () => v
             onClick={() => setResetOpen(true)}
             className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-red-50 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:hover:bg-red-950"
           >
-            <RotateCcw className="size-4" aria-hidden="true" />รีเซ็ตข้อมูลเดโม
+            <RotateCcw className="size-4" aria-hidden="true" />รีเซ็ตข้อมูลร้าน
           </button>
         </div>
       )}
@@ -126,7 +133,7 @@ function Sidebar({ role, onNavigate }: { role: SessionRole; onNavigate?: () => v
         <DialogContent>
           <DialogHeader>
             <DialogTitle>รีเซ็ตข้อมูลร้านทั้งหมด?</DialogTitle>
-            <DialogDescription>เมนู โต๊ะ ออเดอร์ การแจ้งเตือน และแพ็กเกจจะกลับเป็นค่าเริ่มต้น การดำเนินการนี้ย้อนกลับไม่ได้</DialogDescription>
+            <DialogDescription>เมนู โต๊ะ ออเดอร์ การแจ้งเตือน และแพ็กเกจของร้านนี้จะกลับเป็นค่าเริ่มต้น โดยไม่กระทบร้านอื่น การดำเนินการนี้ย้อนกลับไม่ได้</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetOpen(false)}>ยกเลิก</Button>
@@ -144,6 +151,8 @@ function AdminShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session, signOut } = useAuthSession();
   const notifications = useDemoStore((state) => state.notifications);
+  const restaurant = useDemoStore((state) => state.restaurants[0]);
+  const primaryBranch = useDemoStore((state) => state.branches[0]);
   const markRead = useDemoStore((state) => state.markNotificationsRead);
   const unread = notifications.filter((item) => !item.read).length;
 
@@ -181,7 +190,7 @@ function AdminShellContent({ children }: { children: React.ReactNode }) {
           <Button variant="ghost" size="icon" className="shrink-0 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="เปิดเมนู"><Menu /></Button>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">สวัสดี {session.name.replace(/\s*\([^)]*\)\s*$/, "")}</p>
-            <p className="truncate text-[11px] text-muted-foreground">สวัสดี บิสโทร · สาขาสุขุมวิท</p>
+            <p className="truncate text-[11px] text-muted-foreground">{restaurant?.name ?? "ยังไม่ได้ตั้งชื่อร้าน"} · {primaryBranch?.name ?? "ยังไม่มีสาขา"}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

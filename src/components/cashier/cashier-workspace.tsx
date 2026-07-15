@@ -24,6 +24,10 @@ export function CashierWorkspace() {
   const { session, signOut } = useAuthSession();
   const orders = useDemoStore((state) => state.orders);
   const tables = useDemoStore((state) => state.tables);
+  const restaurant = useDemoStore((state) => state.restaurants[0]);
+  const branch = useDemoStore((state) => state.branches[0]);
+  const firstTable = tables[0];
+  const qrHref = restaurant && firstTable ? `/order/${restaurant.slug}/table/${firstTable.token}` : "/dashboard/tables";
   const paidOrders = orders.filter((order) => Boolean(order.paidAt));
   const activeOrders = orders.filter((order) => !["SERVED", "CANCELLED"].includes(order.status));
   const pendingBills = tables.filter((table) => table.status === "BILL_REQUESTED");
@@ -42,7 +46,7 @@ export function CashierWorkspace() {
             <BrandLogo compact />
             <div className="hidden min-w-0 border-l pl-3 sm:block">
               <p className="truncate text-sm font-bold">Cashier Workspace</p>
-              <p className="truncate text-xs text-muted-foreground">{session?.name ?? "บัญชีแคชเชียร์"} · สาขาสุขุมวิท</p>
+              <p className="truncate text-xs text-muted-foreground">{session?.name ?? "บัญชีแคชเชียร์"} · {branch?.name ?? "ยังไม่มีสาขา"}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -111,7 +115,7 @@ export function CashierWorkspace() {
             <p className="mt-1 text-xs text-muted-foreground">เข้าถึงเฉพาะเครื่องมือของแคชเชียร์</p>
             <div className="mt-5 space-y-3">
               <Button className="min-h-12 w-full justify-between" asChild><Link href="/pos"><span className="flex items-center gap-2"><Monitor />เปิด POS</span><ArrowRight /></Link></Button>
-              <Button variant="outline" className="min-h-12 w-full justify-between" asChild><Link href="/order/demo-restaurant/table/table-01"><span className="flex items-center gap-2"><QrCode />ดู QR เมนู</span><ArrowRight /></Link></Button>
+              <Button variant="outline" className="min-h-12 w-full justify-between" asChild><Link href={qrHref}><span className="flex items-center gap-2"><QrCode />{firstTable ? "ดู QR เมนู" : "เพิ่มโต๊ะและ QR"}</span><ArrowRight /></Link></Button>
               <div className="rounded-xl border bg-muted/50 p-4">
                 <ReceiptText className="size-5 text-primary" />
                 <p className="mt-3 text-sm font-bold">ข้อมูลผู้บริหารถูกจำกัด</p>

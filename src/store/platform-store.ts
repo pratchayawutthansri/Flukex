@@ -9,6 +9,7 @@ import type {
   CreditRequestStatus,
   CreditTopUpRequest,
   PlatformMember,
+  PlatformSecurityEvent,
 } from "@/domain/credits";
 import { createId } from "@/lib/utils";
 
@@ -17,6 +18,22 @@ const CREATED_AT = "2026-07-15T03:00:00.000Z";
 export function createTopUpReference(now = new Date(), suffix = Math.floor(Math.random() * 10_000)) {
   const date = now.toISOString().slice(0, 10).replaceAll("-", "");
   return `TOPUP-${date}-${String(suffix).padStart(4, "0")}`;
+}
+
+export function createPasswordResetAuditEvent(
+  member: PlatformMember,
+  performedBy: string,
+  createdAt = new Date().toISOString(),
+  id = createId("security"),
+): PlatformSecurityEvent {
+  return {
+    id,
+    memberId: member.id,
+    tenantId: member.tenantId,
+    type: "PASSWORD_RESET",
+    createdAt,
+    createdBy: performedBy,
+  };
 }
 
 export function createDefaultCreditData(): CreditDataSnapshot {
@@ -98,6 +115,7 @@ export function createDefaultCreditData(): CreditDataSnapshot {
         createdBy: "admin@flukex.demo",
       },
     ],
+    securityEvents: [],
   };
 }
 
@@ -155,6 +173,7 @@ export function applyCreditReview(state: CreditDataSnapshot, input: ReviewInput)
       members: state.members.map((item) => item.id === member.id ? { ...item, creditBalance: nextBalance, updatedAt: input.reviewedAt } : item),
       topUpRequests: state.topUpRequests.map((item) => item.id === request.id ? reviewedRequest : item),
       ledger: [ledgerEntry, ...state.ledger],
+      securityEvents: state.securityEvents,
     },
   };
 }
@@ -166,6 +185,7 @@ interface PlatformStore extends CreditDataSnapshot {
   registerMember: (input: { tenantId: string; businessName: string; ownerName: string; ownerEmail: string }) => PlatformMember;
   reviewTopUp: (input: Omit<ReviewInput, "reviewedAt" | "ledgerId">) => boolean;
   setMemberStatus: (memberId: string, status: PlatformMember["status"]) => void;
+  recordPasswordReset: (input: { memberId: string; performedBy: string }) => PlatformSecurityEvent;
   resetPlatformData: () => void;
 }
 
@@ -227,6 +247,13 @@ export const usePlatformStore = create<PlatformStore>()(
       setMemberStatus: (memberId, status) => set((state) => ({
         members: state.members.map((member) => member.id === memberId ? { ...member, status, updatedAt: new Date().toISOString() } : member),
       })),
+      recordPasswordReset: ({ memberId, performedBy }) => {
+        const member = get().members.find((item) => item.id === memberId);
+        if (!member) throw new Error("ไม่พบบัญชีสมาชิกร้านค้า");
+        const event = createPasswordResetAuditEvent(member, performedBy);
+        set((state) => ({ securityEvents: [event, ...state.securityEvents] }));
+        return event;
+      },
       resetPlatformData: () => set({ ...createDefaultCreditData() }),
     }),
     {
@@ -236,6 +263,7 @@ export const usePlatformStore = create<PlatformStore>()(
         members: state.members,
         topUpRequests: state.topUpRequests,
         ledger: state.ledger,
+        securityEvents: state.securityEvents,
       }),
       onRehydrateStorage: () => (state) => state?.setHydrated(true),
     },

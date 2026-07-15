@@ -28,6 +28,7 @@ export interface DemoSession {
   name: string;
   email: string;
   role: SessionRole;
+  restaurantName?: string;
   expiresAt: string;
 }
 

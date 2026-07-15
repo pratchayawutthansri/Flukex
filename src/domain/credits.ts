@@ -45,8 +45,18 @@ export interface CreditLedgerEntry {
   createdBy: string;
 }
 
+export interface PlatformSecurityEvent {
+  id: string;
+  memberId: string;
+  tenantId: string;
+  type: "PASSWORD_RESET";
+  createdAt: string;
+  createdBy: string;
+}
+
 export interface CreditDataSnapshot {
   members: PlatformMember[];
   topUpRequests: CreditTopUpRequest[];
   ledger: CreditLedgerEntry[];
+  securityEvents: PlatformSecurityEvent[];
 }

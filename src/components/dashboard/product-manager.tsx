@@ -31,7 +31,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { DEMO_TENANT_ID } from "@/data/mock-data";
 import type { Product, ProductModifier, Station } from "@/domain/types";
 import {
   createOptimizedProductImage,
@@ -43,12 +42,12 @@ import { services } from "@/services/container";
 import { useDemoStore } from "@/store/demo-store";
 import { PageHeader } from "./page-header";
 
-function createEmptyProduct(): Product {
+function createEmptyProduct(tenantId: string, categoryId: string): Product {
   const now = new Date().toISOString();
   return {
     id: createId("product"),
-    tenantId: DEMO_TENANT_ID,
-    categoryId: "cat_main",
+    tenantId,
+    categoryId,
     name: "",
     description: "",
     price: 0,
@@ -89,6 +88,7 @@ function ProductArtwork({ source, alt }: { source: string; alt: string }) {
 export function ProductManager() {
   const { session } = useAuthSession();
   const products = useDemoStore((state) => state.products);
+  const activeTenantId = useDemoStore((state) => state.activeTenantId);
   const categories = useDemoStore((state) => state.categories);
   const saveProduct = useDemoStore((state) => state.saveProduct);
   const removeProduct = useDemoStore((state) => state.removeProduct);
@@ -180,7 +180,7 @@ export function ProductManager() {
       <PageHeader
         title="สินค้าและเมนู"
         description={`${products.length} รายการ · กำหนดรูปอาหาร Station, Modifier และสถานะการขายได้จากจุดเดียว`}
-        actions={<Button onClick={() => openEditor(createEmptyProduct())}><PackagePlus />เพิ่มสินค้า</Button>}
+        actions={<Button disabled={!categories.length} onClick={() => openEditor(createEmptyProduct(activeTenantId, categories[0]?.id ?? ""))}><PackagePlus />เพิ่มสินค้า</Button>}
       />
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">

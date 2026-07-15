@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyCreditReview, createDefaultCreditData, createTopUpReference } from "./platform-store";
+import {
+  applyCreditReview,
+  createDefaultCreditData,
+  createPasswordResetAuditEvent,
+  createTopUpReference,
+} from "./platform-store";
 
 describe("credit approval workflow", () => {
   it("creates a traceable reference", () => {
@@ -51,5 +56,25 @@ describe("credit approval workflow", () => {
     expect(result.state.members.find((item) => item.id === "member_riverside")?.creditBalance).toBe(120);
     expect(result.state.ledger).toHaveLength(initial.ledger.length);
     expect(result.state.topUpRequests[0].status).toBe("REJECTED");
+  });
+
+  it("records a password reset without storing the temporary password", () => {
+    const member = createDefaultCreditData().members[0];
+    const event = createPasswordResetAuditEvent(
+      member,
+      "admin@flukex.demo",
+      "2026-07-15T10:00:00.000Z",
+      "security_test",
+    );
+
+    expect(event).toEqual({
+      id: "security_test",
+      memberId: member.id,
+      tenantId: member.tenantId,
+      type: "PASSWORD_RESET",
+      createdAt: "2026-07-15T10:00:00.000Z",
+      createdBy: "admin@flukex.demo",
+    });
+    expect(event).not.toHaveProperty("password");
   });
 });

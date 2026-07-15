@@ -407,7 +407,10 @@ export function KdsDisplay({ station }: { station: Station }) {
   const router = useRouter();
   const { session, signOut } = useAuthSession();
   const orders = useDemoStore((state) => state.orders);
+  const restaurant = useDemoStore((state) => state.restaurants[0]);
+  const firstTable = useDemoStore((state) => state.tables[0]);
   const update = useDemoStore((state) => state.updateOrderStatus);
+  const qrHref = restaurant && firstTable ? `/order/${restaurant.slug}/table/${firstTable.token}` : "/dashboard/tables";
   const [dark, setDark] = useState(true);
   const [sound, setSound] = useState(true);
   const [preferencesReady, setPreferencesReady] = useState(false);
@@ -745,9 +748,9 @@ export function KdsDisplay({ station }: { station: Station }) {
                   </Link>
                 </Button>
                 <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
-                  <Link href="/order/demo-restaurant/table/table-01">
+                  <Link href={qrHref}>
                     <QrCode aria-hidden="true" />
-                    QR ทดลอง
+                    {firstTable ? "เปิด QR" : "เพิ่มโต๊ะและ QR"}
                   </Link>
                 </Button>
               </>

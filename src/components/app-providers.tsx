@@ -9,6 +9,7 @@ import { AuthSessionProvider } from "@/components/auth/auth-session-provider";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const addNotification = useDemoStore((state) => state.addNotification);
+  const reloadActiveTenant = useDemoStore((state) => state.reloadActiveTenant);
 
   useEffect(() => {
     const handleNotification = (event: Event) => {
@@ -21,9 +22,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }, [addNotification]);
 
   useEffect(() => services.realtime.subscribe((event: RealtimeEvent) => {
-    void useDemoStore.persist.rehydrate();
+    if (event.tenantId !== useDemoStore.getState().activeTenantId) return;
+    reloadActiveTenant();
     if (event.type === "ORDER_CREATED") toast.success("มีออเดอร์ใหม่เข้ามา", { description: "ข้อมูลจอครัวและบาร์อัปเดตแล้ว" });
-  }), []);
+  }), [reloadActiveTenant]);
 
   return (
     <AuthSessionProvider>

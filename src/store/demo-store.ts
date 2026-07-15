@@ -3,21 +3,34 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { getEntitlements, isWithinLimit } from "@/config/plans";
-import { createDefaultDemoData, DEMO_TENANT_ID, type DemoData } from "@/data/mock-data";
+import { createDefaultDemoData, createNewTenantData, DEMO_TENANT_ID, type DemoData } from "@/data/mock-data";
 import type { Branch, Category, DemoUser, NotificationLog, Order, OrderStatus, PlanId, Product, Restaurant, RestaurantTable, TableStatus } from "@/domain/types";
 import { createId } from "@/lib/utils";
 import { services } from "@/services/container";
+import { browserStorage, STORAGE_KEYS } from "@/services/storage";
+
+const DEFAULT_COMMERCE_SETTINGS = { vatRate: 7, serviceChargeRate: 10, pricesIncludeVat: false, receiptFooter: "ขอบคุณที่ใช้บริการ • แล้วพบกันใหม่" };
+
+interface ActivateTenantInput {
+  tenantId: string;
+  ownerName: string;
+  ownerEmail: string;
+  restaurantName?: string;
+}
+
+interface TenantDataSnapshot extends DemoData {
+  planId: PlanId;
+  commerceSettings: typeof DEFAULT_COMMERCE_SETTINGS;
+}
 
 interface DemoStore extends DemoData {
+  activeTenantId: string;
   planId: PlanId;
-  commerceSettings: {
-    vatRate: number;
-    serviceChargeRate: number;
-    pricesIncludeVat: boolean;
-    receiptFooter: string;
-  };
+  commerceSettings: typeof DEFAULT_COMMERCE_SETTINGS;
   hydrated: boolean;
   setHydrated: (hydrated: boolean) => void;
+  activateTenant: (input: ActivateTenantInput) => void;
+  reloadActiveTenant: () => void;
   selectPlan: (planId: PlanId) => void;
   updateCommerceSettings: (settings: Partial<DemoStore["commerceSettings"]>) => void;
   addOrder: (order: Order) => void;
@@ -38,25 +51,81 @@ interface DemoStore extends DemoData {
   resetDemo: () => void;
 }
 
+function createDefaultTenantSnapshot(): TenantDataSnapshot {
+  return { ...createDefaultDemoData(), planId: "starter", commerceSettings: { ...DEFAULT_COMMERCE_SETTINGS } };
+}
+
+function createNewTenantSnapshot(input: ActivateTenantInput): TenantDataSnapshot {
+  return {
+    ...createNewTenantData({
+      tenantId: input.tenantId,
+      ownerName: input.ownerName,
+      ownerEmail: input.ownerEmail,
+      restaurantName: input.restaurantName?.trim() || `ร้านของ ${input.ownerName}`,
+    }),
+    planId: "free",
+    commerceSettings: { ...DEFAULT_COMMERCE_SETTINGS },
+  };
+}
+
+function selectTenantSnapshot(state: DemoStore): TenantDataSnapshot {
+  return {
+    users: state.users,
+    restaurants: state.restaurants,
+    branches: state.branches,
+    categories: state.categories,
+    products: state.products,
+    tables: state.tables,
+    orders: state.orders,
+    notifications: state.notifications,
+    planId: state.planId,
+    commerceSettings: state.commerceSettings,
+  };
+}
+
+function tenantStorageKey(tenantId: string) {
+  return `${STORAGE_KEYS.tenantDataPrefix}${tenantId}`;
+}
+
 export const useDemoStore = create<DemoStore>()(
   persist(
     (set, get) => ({
       ...createDefaultDemoData(),
+      activeTenantId: DEMO_TENANT_ID,
       planId: "starter",
-      commerceSettings: { vatRate: 7, serviceChargeRate: 10, pricesIncludeVat: false, receiptFooter: "ขอบคุณที่ใช้บริการ • แล้วพบกันใหม่" },
+      commerceSettings: { ...DEFAULT_COMMERCE_SETTINGS },
       hydrated: false,
       setHydrated: (hydrated) => set({ hydrated }),
+      activateTenant: (input) => {
+        const current = get();
+        const currentIsScoped = [...current.users, ...current.restaurants, ...current.branches, ...current.categories, ...current.products, ...current.tables, ...current.orders, ...current.notifications]
+          .every((entity) => entity.tenantId === current.activeTenantId);
+        if (current.activeTenantId === input.tenantId && currentIsScoped) return;
+        if (currentIsScoped) browserStorage.set(tenantStorageKey(current.activeTenantId), selectTenantSnapshot(current));
+
+        const fallback = input.tenantId === DEMO_TENANT_ID ? createDefaultTenantSnapshot() : createNewTenantSnapshot(input);
+        const next = browserStorage.get<TenantDataSnapshot>(tenantStorageKey(input.tenantId), fallback);
+        browserStorage.set(tenantStorageKey(input.tenantId), next);
+        set({ ...next, activeTenantId: input.tenantId });
+      },
+      reloadActiveTenant: () => {
+        const current = get();
+        const next = browserStorage.get<TenantDataSnapshot>(tenantStorageKey(current.activeTenantId), selectTenantSnapshot(current));
+        set({ ...next });
+      },
       selectPlan: (planId) => {
         set({ planId });
         void services.subscriptions.selectPlan(planId);
       },
       updateCommerceSettings: (settings) => set((state) => ({ commerceSettings: { ...state.commerceSettings, ...settings } })),
       addOrder: (order) => {
+        const tenantId = get().activeTenantId;
+        const scopedOrder = { ...order, tenantId };
         set((state) => ({
-          orders: [order, ...state.orders],
-          tables: state.tables.map((table) => table.id === order.tableId ? { ...table, status: "OCCUPIED", updatedAt: order.createdAt } : table),
+          orders: [scopedOrder, ...state.orders],
+          tables: state.tables.map((table) => table.id === scopedOrder.tableId ? { ...table, status: "OCCUPIED", updatedAt: scopedOrder.createdAt } : table),
         }));
-        services.realtime.publish({ type: "ORDER_CREATED", tenantId: DEMO_TENANT_ID, payload: order, occurredAt: new Date().toISOString() });
+        services.realtime.publish({ type: "ORDER_CREATED", tenantId, payload: scopedOrder, occurredAt: new Date().toISOString() });
       },
       updateOrderStatus: (orderId, itemId, status) => {
         set((state) => ({
@@ -67,58 +136,82 @@ export const useDemoStore = create<DemoStore>()(
             updatedAt: new Date().toISOString(),
           }),
         }));
-        services.realtime.publish({ type: "ORDER_UPDATED", tenantId: DEMO_TENANT_ID, payload: { orderId, itemId, status }, occurredAt: new Date().toISOString() });
+        services.realtime.publish({ type: "ORDER_UPDATED", tenantId: get().activeTenantId, payload: { orderId, itemId, status }, occurredAt: new Date().toISOString() });
       },
       updateTableStatus: (tableId, status) => {
         set((state) => ({ tables: state.tables.map((table) => table.id === tableId ? { ...table, status, updatedAt: new Date().toISOString() } : table) }));
-        services.realtime.publish({ type: status === "BILL_REQUESTED" ? "BILL_REQUESTED" : "TABLE_UPDATED", tenantId: DEMO_TENANT_ID, payload: { tableId, status }, occurredAt: new Date().toISOString() });
+        services.realtime.publish({ type: status === "BILL_REQUESTED" ? "BILL_REQUESTED" : "TABLE_UPDATED", tenantId: get().activeTenantId, payload: { tableId, status }, occurredAt: new Date().toISOString() });
       },
-      saveRestaurant: (restaurant) => set((state) => ({ restaurants: state.restaurants.map((item) => item.id === restaurant.id ? restaurant : item) })),
+      saveRestaurant: (restaurant) => set((state) => {
+        const scopedRestaurant = { ...restaurant, tenantId: state.activeTenantId };
+        return { restaurants: state.restaurants.map((item) => item.id === scopedRestaurant.id ? scopedRestaurant : item) };
+      }),
       saveBranch: (branch) => {
         const state = get();
-        const exists = state.branches.some((item) => item.id === branch.id);
+        const scopedBranch = { ...branch, tenantId: state.activeTenantId };
+        const exists = state.branches.some((item) => item.id === scopedBranch.id);
         const activeUsage = state.branches.filter((item) => item.isActive).length;
-        if (!exists && branch.isActive && !isWithinLimit(state.planId, "maxBranches", activeUsage)) {
+        if (!exists && scopedBranch.isActive && !isWithinLimit(state.planId, "maxBranches", activeUsage)) {
           void services.notifications.notify({ title: "ถึงขีดจำกัดสาขาแล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มสาขาที่เปิดใช้งาน" });
           return;
         }
-        set({ branches: exists ? state.branches.map((item) => item.id === branch.id ? branch : item) : [...state.branches, branch] });
+        set({ branches: exists ? state.branches.map((item) => item.id === scopedBranch.id ? scopedBranch : item) : [...state.branches, scopedBranch] });
       },
       removeBranch: (id) => set((state) => ({ branches: state.branches.filter((branch) => branch.id !== id) })),
       saveUser: (user) => {
         const state = get();
-        const exists = state.users.some((item) => item.id === user.id);
+        const scopedUser = { ...user, tenantId: state.activeTenantId };
+        const exists = state.users.some((item) => item.id === scopedUser.id);
         if (!exists && !isWithinLimit(state.planId, "maxUsers", state.users.length)) {
           void services.notifications.notify({ title: "ถึงขีดจำกัดผู้ใช้แล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มบัญชีพนักงาน" });
           return;
         }
-        set({ users: exists ? state.users.map((item) => item.id === user.id ? user : item) : [...state.users, user] });
+        set({ users: exists ? state.users.map((item) => item.id === scopedUser.id ? scopedUser : item) : [...state.users, scopedUser] });
       },
       removeUser: (id) => set((state) => ({ users: state.users.filter((user) => user.id !== id) })),
       saveProduct: (product) => {
         const state = get();
-        const exists = state.products.some((item) => item.id === product.id);
+        const scopedProduct = { ...product, tenantId: state.activeTenantId };
+        const exists = state.products.some((item) => item.id === scopedProduct.id);
         if (!exists && !isWithinLimit(state.planId, "maxProducts", state.products.length)) {
           void services.notifications.notify({ title: "ถึงขีดจำกัดสินค้าแล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มเมนูใหม่" });
           return;
         }
-        set({ products: exists ? state.products.map((item) => item.id === product.id ? product : item) : [product, ...state.products] });
+        set({ products: exists ? state.products.map((item) => item.id === scopedProduct.id ? scopedProduct : item) : [scopedProduct, ...state.products] });
       },
       removeProduct: (id) => set((state) => ({ products: state.products.filter((product) => product.id !== id) })),
-      saveCategory: (category) => set((state) => ({ categories: state.categories.some((item) => item.id === category.id) ? state.categories.map((item) => item.id === category.id ? category : item) : [...state.categories, category] })),
+      saveCategory: (category) => set((state) => {
+        const scopedCategory = { ...category, tenantId: state.activeTenantId };
+        return { categories: state.categories.some((item) => item.id === scopedCategory.id) ? state.categories.map((item) => item.id === scopedCategory.id ? scopedCategory : item) : [...state.categories, scopedCategory] };
+      }),
       removeCategory: (id) => set((state) => ({ categories: state.categories.filter((category) => category.id !== id) })),
       saveTable: (table) => {
         const state = get();
-        const exists = state.tables.some((item) => item.id === table.id);
+        const scopedTable = { ...table, tenantId: state.activeTenantId };
+        const exists = state.tables.some((item) => item.id === scopedTable.id);
         if (!exists && !isWithinLimit(state.planId, "maxTables", state.tables.length)) {
           void services.notifications.notify({ title: "ถึงขีดจำกัดโต๊ะแล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มโต๊ะและ QR token" });
           return;
         }
-        set({ tables: exists ? state.tables.map((item) => item.id === table.id ? table : item) : [...state.tables, table] });
+        set({ tables: exists ? state.tables.map((item) => item.id === scopedTable.id ? scopedTable : item) : [...state.tables, scopedTable] });
       },
-      addNotification: (input) => set((state) => ({ notifications: [{ id: createId("notification"), tenantId: DEMO_TENANT_ID, ...input, createdAt: new Date().toISOString(), read: false }, ...state.notifications].slice(0, 50) })),
+      addNotification: (input) => set((state) => ({ notifications: [{ id: createId("notification"), tenantId: state.activeTenantId, ...input, createdAt: new Date().toISOString(), read: false }, ...state.notifications].slice(0, 50) })),
       markNotificationsRead: () => set((state) => ({ notifications: state.notifications.map((notification) => ({ ...notification, read: true })) })),
-      resetDemo: () => set({ ...createDefaultDemoData(), planId: "starter", commerceSettings: { vatRate: 7, serviceChargeRate: 10, pricesIncludeVat: false, receiptFooter: "ขอบคุณที่ใช้บริการ • แล้วพบกันใหม่" } }),
+      resetDemo: () => {
+        const state = get();
+        const owner = state.users.find((user) => user.role === "OWNER");
+        const restaurant = state.restaurants[0];
+        const next = state.activeTenantId === DEMO_TENANT_ID
+          ? createDefaultTenantSnapshot()
+          : createNewTenantSnapshot({
+              tenantId: state.activeTenantId,
+              ownerName: owner?.name ?? "เจ้าของร้าน",
+              ownerEmail: owner?.email ?? "owner@example.com",
+              restaurantName: restaurant?.name,
+            });
+        browserStorage.set(tenantStorageKey(state.activeTenantId), next);
+        set({ ...next });
+      },
     }),
     {
       name: "flukex-pos:demo-store",
@@ -132,6 +225,7 @@ export const useDemoStore = create<DemoStore>()(
         tables: state.tables,
         orders: state.orders,
         notifications: state.notifications,
+        activeTenantId: state.activeTenantId,
         planId: state.planId,
         commerceSettings: state.commerceSettings,
       }),
@@ -139,6 +233,12 @@ export const useDemoStore = create<DemoStore>()(
     },
   ),
 );
+
+if (typeof window !== "undefined") {
+  useDemoStore.subscribe((state) => {
+    browserStorage.set(tenantStorageKey(state.activeTenantId), selectTenantSnapshot(state));
+  });
+}
 
 export function getCurrentUsage(state: Pick<DemoStore, "branches" | "users" | "tables" | "products" | "orders">) {
   return {

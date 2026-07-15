@@ -7,6 +7,7 @@ import {
   Clock3,
   Coins,
   History,
+  KeyRound,
   LogOut,
   Search,
   ShieldCheck,
@@ -19,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { useAuthSession } from "@/components/auth/auth-session-provider";
+import { MemberPasswordResetDialog } from "@/components/platform-admin/member-password-reset-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -41,7 +43,15 @@ interface ReviewState {
   decision: "APPROVED" | "REJECTED";
 }
 
-function MemberCard({ member, onStatusChange }: { member: PlatformMember; onStatusChange: (memberId: string, status: MemberStatus) => void }) {
+function MemberCard({
+  member,
+  onStatusChange,
+  onPasswordReset,
+}: {
+  member: PlatformMember;
+  onStatusChange: (memberId: string, status: MemberStatus) => void;
+  onPasswordReset: (member: PlatformMember) => void;
+}) {
   const status = memberStatus[member.status];
   return (
     <article className="rounded-xl border bg-card p-4">
@@ -55,9 +65,10 @@ function MemberCard({ member, onStatusChange }: { member: PlatformMember; onStat
         <div><p className="text-xs text-muted-foreground">เครดิต</p><p className="font-bold">{member.creditBalance.toLocaleString("th-TH")}</p></div>
         <div><p className="text-xs text-muted-foreground">แพ็กเกจ</p><p className="font-bold capitalize">{member.planId}</p></div>
       </div>
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2">
         {member.status !== "ACTIVE" && <Button size="sm" variant="outline" className="flex-1" onClick={() => onStatusChange(member.id, "ACTIVE")}><UserCheck />เปิดใช้งาน</Button>}
         {member.status === "ACTIVE" && <Button size="sm" variant="outline" className="flex-1 text-destructive" onClick={() => onStatusChange(member.id, "SUSPENDED")}><X />ระงับสมาชิก</Button>}
+        <Button size="sm" variant="outline" onClick={() => onPasswordReset(member)} aria-label={`รีเซ็ตรหัสผ่าน ${member.businessName}`}><KeyRound />รีเซ็ตรหัส</Button>
       </div>
     </article>
   );
@@ -69,11 +80,13 @@ export function PlatformAdminDashboard() {
   const members = usePlatformStore((state) => state.members);
   const requests = usePlatformStore((state) => state.topUpRequests);
   const ledger = usePlatformStore((state) => state.ledger);
+  const securityEvents = usePlatformStore((state) => state.securityEvents);
   const reviewTopUp = usePlatformStore((state) => state.reviewTopUp);
   const setMemberStatus = usePlatformStore((state) => state.setMemberStatus);
   const [search, setSearch] = useState("");
   const [review, setReview] = useState<ReviewState | null>(null);
   const [reviewNote, setReviewNote] = useState("");
+  const [passwordResetMember, setPasswordResetMember] = useState<PlatformMember | null>(null);
 
   const pendingRequests = requests.filter((request) => request.status === "PENDING");
   const filteredMembers = useMemo(() => {
@@ -138,7 +151,7 @@ export function PlatformAdminDashboard() {
             { label: "สมาชิกทั้งหมด", value: members.length, description: `${members.filter((item) => item.status === "ACTIVE").length} ร้านใช้งานอยู่`, icon: Users, tone: "bg-blue-100 text-blue-700" },
             { label: "คำขอรอตรวจ", value: pendingRequests.length, description: `${pendingCreditAmount.toLocaleString("th-TH")} เครดิต`, icon: Clock3, tone: "bg-amber-100 text-amber-700" },
             { label: "เครดิตในระบบ", value: totalCredits.toLocaleString("th-TH"), description: "ยอดคงเหลือทุกร้าน", icon: Coins, tone: "bg-emerald-100 text-emerald-700" },
-            { label: "Ledger entries", value: ledger.length, description: "ตรวจสอบย้อนหลังได้", icon: History, tone: "bg-violet-100 text-violet-700" },
+            { label: "Audit events", value: ledger.length + securityEvents.length, description: `${securityEvents.length} กิจกรรมความปลอดภัย`, icon: History, tone: "bg-violet-100 text-violet-700" },
           ].map((item) => (
             <Card key={item.label} className="p-5"><span className={`grid size-10 place-items-center rounded-xl ${item.tone}`}><item.icon className="size-5" aria-hidden="true" /></span><p className="mt-4 text-sm text-muted-foreground">{item.label}</p><p className="mt-1 text-2xl font-bold">{item.value}</p><p className="mt-1 text-xs text-muted-foreground">{item.description}</p></Card>
           ))}
@@ -169,12 +182,39 @@ export function PlatformAdminDashboard() {
 
         <section className="mt-8" aria-labelledby="members-heading">
           <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-            <div><h2 id="members-heading" className="text-xl font-bold">สมาชิกและร้านค้า</h2><p className="mt-1 text-sm text-muted-foreground">ค้นหา เปิดใช้งาน หรือระงับบัญชีร้าน</p></div>
+            <div><h2 id="members-heading" className="text-xl font-bold">สมาชิกและร้านค้า</h2><p className="mt-1 text-sm text-muted-foreground">ค้นหา จัดการสถานะ หรือสร้างรหัสผ่านชั่วคราวให้สมาชิก</p></div>
             <div className="relative w-full sm:max-w-sm"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาร้าน ชื่อ หรืออีเมล" className="pl-10" aria-label="ค้นหาสมาชิก" /></div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredMembers.map((member) => <MemberCard key={member.id} member={member} onStatusChange={updateMemberStatus} />)}
+            {filteredMembers.map((member) => <MemberCard key={member.id} member={member} onStatusChange={updateMemberStatus} onPasswordReset={setPasswordResetMember} />)}
           </div>
+        </section>
+
+        <section className="mt-8" aria-labelledby="security-audit-heading">
+          <Card className="overflow-hidden">
+            <div className="border-b p-5">
+              <h2 id="security-audit-heading" className="flex items-center gap-2 text-lg font-bold"><KeyRound className="size-5 text-primary" />กิจกรรมความปลอดภัยล่าสุด</h2>
+              <p className="mt-1 text-xs text-muted-foreground">บันทึกผู้ดำเนินการและเวลาที่รีเซ็ตรหัส โดยไม่บันทึกตัวรหัสผ่าน</p>
+            </div>
+            {securityEvents.length ? (
+              <ul className="divide-y" aria-live="polite">
+                {securityEvents.slice(0, 8).map((event) => {
+                  const member = members.find((item) => item.id === event.memberId);
+                  return (
+                    <li key={event.id} className="flex flex-col justify-between gap-2 px-5 py-4 sm:flex-row sm:items-center">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"><KeyRound className="size-4" aria-hidden="true" /></span>
+                        <div className="min-w-0"><p className="font-semibold">สร้างรหัสผ่านชั่วคราว</p><p className="truncate text-xs text-muted-foreground">{member?.businessName ?? event.tenantId} · โดย {event.createdBy}</p></div>
+                      </div>
+                      <time className="text-xs text-muted-foreground" dateTime={event.createdAt}>{formatDateTime(event.createdAt)}</time>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="p-8 text-center"><ShieldCheck className="mx-auto size-9 text-muted-foreground" /><p className="mt-3 font-semibold">ยังไม่มีกิจกรรมรีเซ็ตรหัส</p><p className="mt-1 text-xs text-muted-foreground">รายการจะปรากฏหลังผู้ดูแลสร้างรหัสผ่านชั่วคราว</p></div>
+            )}
+          </Card>
         </section>
 
         <section className="mt-8" aria-labelledby="ledger-heading">
@@ -194,6 +234,8 @@ export function PlatformAdminDashboard() {
           </Card>
         </section>
       </div>
+
+      <MemberPasswordResetDialog member={passwordResetMember} operatorEmail={session?.email} onClose={() => setPasswordResetMember(null)} />
 
       <Dialog open={Boolean(review)} onOpenChange={(open) => !open && setReview(null)}>
         <DialogContent>

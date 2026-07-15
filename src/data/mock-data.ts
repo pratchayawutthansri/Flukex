@@ -281,4 +281,50 @@ export const createDefaultDemoData = (): DemoData => ({
   ],
 });
 
+export function createNewTenantData(input: { tenantId: string; ownerName: string; ownerEmail: string; restaurantName: string }): DemoData {
+  const now = new Date().toISOString();
+  const safeTenantId = input.tenantId.replace(/[^a-zA-Z0-9_-]/g, "");
+  const restaurantId = `restaurant_${safeTenantId}`;
+  const branchId = `branch_${safeTenantId}_main`;
+
+  return {
+    users: [{
+      id: `user_${safeTenantId}_owner`,
+      tenantId: input.tenantId,
+      name: input.ownerName,
+      email: input.ownerEmail,
+      role: "OWNER",
+      branchIds: [branchId],
+      createdAt: now,
+      updatedAt: now,
+    }],
+    restaurants: [{
+      id: restaurantId,
+      tenantId: input.tenantId,
+      name: input.restaurantName,
+      slug: `restaurant-${safeTenantId.slice(-12).toLowerCase()}`,
+      phone: "",
+      address: "",
+      createdAt: now,
+      updatedAt: now,
+    }],
+    branches: [{
+      id: branchId,
+      tenantId: input.tenantId,
+      restaurantId,
+      name: "สาขาหลัก",
+      code: "MAIN",
+      address: "",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    }],
+    categories: [],
+    products: [],
+    tables: [],
+    orders: [],
+    notifications: [],
+  };
+}
+
 export const DEMO_TENANT_ID = TENANT_ID;
