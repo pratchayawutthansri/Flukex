@@ -1,0 +1,155 @@
+"use client";
+
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { getEntitlements, isWithinLimit } from "@/config/plans";
+import { createDefaultDemoData, DEMO_TENANT_ID, type DemoData } from "@/data/mock-data";
+import type { Branch, Category, DemoUser, NotificationLog, Order, OrderStatus, PlanId, Product, Restaurant, RestaurantTable, TableStatus } from "@/domain/types";
+import { createId } from "@/lib/utils";
+import { services } from "@/services/container";
+
+interface DemoStore extends DemoData {
+  planId: PlanId;
+  commerceSettings: {
+    vatRate: number;
+    serviceChargeRate: number;
+    pricesIncludeVat: boolean;
+    receiptFooter: string;
+  };
+  hydrated: boolean;
+  setHydrated: (hydrated: boolean) => void;
+  selectPlan: (planId: PlanId) => void;
+  updateCommerceSettings: (settings: Partial<DemoStore["commerceSettings"]>) => void;
+  addOrder: (order: Order) => void;
+  updateOrderStatus: (orderId: string, itemId: string | null, status: OrderStatus) => void;
+  updateTableStatus: (tableId: string, status: TableStatus) => void;
+  saveRestaurant: (restaurant: Restaurant) => void;
+  saveBranch: (branch: Branch) => void;
+  removeBranch: (id: string) => void;
+  saveUser: (user: DemoUser) => void;
+  removeUser: (id: string) => void;
+  saveProduct: (product: Product) => void;
+  removeProduct: (id: string) => void;
+  saveCategory: (category: Category) => void;
+  removeCategory: (id: string) => void;
+  saveTable: (table: RestaurantTable) => void;
+  addNotification: (input: Pick<NotificationLog, "title" | "message" | "channel">) => void;
+  markNotificationsRead: () => void;
+  resetDemo: () => void;
+}
+
+export const useDemoStore = create<DemoStore>()(
+  persist(
+    (set, get) => ({
+      ...createDefaultDemoData(),
+      planId: "starter",
+      commerceSettings: { vatRate: 7, serviceChargeRate: 10, pricesIncludeVat: false, receiptFooter: "ขอบคุณที่ใช้บริการ • แล้วพบกันใหม่" },
+      hydrated: false,
+      setHydrated: (hydrated) => set({ hydrated }),
+      selectPlan: (planId) => {
+        set({ planId });
+        void services.subscriptions.selectPlan(planId);
+      },
+      updateCommerceSettings: (settings) => set((state) => ({ commerceSettings: { ...state.commerceSettings, ...settings } })),
+      addOrder: (order) => {
+        set((state) => ({
+          orders: [order, ...state.orders],
+          tables: state.tables.map((table) => table.id === order.tableId ? { ...table, status: "OCCUPIED", updatedAt: order.createdAt } : table),
+        }));
+        services.realtime.publish({ type: "ORDER_CREATED", tenantId: DEMO_TENANT_ID, payload: order, occurredAt: new Date().toISOString() });
+      },
+      updateOrderStatus: (orderId, itemId, status) => {
+        set((state) => ({
+          orders: state.orders.map((order) => order.id !== orderId ? order : {
+            ...order,
+            status: itemId ? order.status : status,
+            items: itemId ? order.items.map((item) => item.id === itemId ? { ...item, status } : item) : order.items.map((item) => ({ ...item, status })),
+            updatedAt: new Date().toISOString(),
+          }),
+        }));
+        services.realtime.publish({ type: "ORDER_UPDATED", tenantId: DEMO_TENANT_ID, payload: { orderId, itemId, status }, occurredAt: new Date().toISOString() });
+      },
+      updateTableStatus: (tableId, status) => {
+        set((state) => ({ tables: state.tables.map((table) => table.id === tableId ? { ...table, status, updatedAt: new Date().toISOString() } : table) }));
+        services.realtime.publish({ type: status === "BILL_REQUESTED" ? "BILL_REQUESTED" : "TABLE_UPDATED", tenantId: DEMO_TENANT_ID, payload: { tableId, status }, occurredAt: new Date().toISOString() });
+      },
+      saveRestaurant: (restaurant) => set((state) => ({ restaurants: state.restaurants.map((item) => item.id === restaurant.id ? restaurant : item) })),
+      saveBranch: (branch) => {
+        const state = get();
+        const exists = state.branches.some((item) => item.id === branch.id);
+        const activeUsage = state.branches.filter((item) => item.isActive).length;
+        if (!exists && branch.isActive && !isWithinLimit(state.planId, "maxBranches", activeUsage)) {
+          void services.notifications.notify({ title: "ถึงขีดจำกัดสาขาแล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มสาขาที่เปิดใช้งาน" });
+          return;
+        }
+        set({ branches: exists ? state.branches.map((item) => item.id === branch.id ? branch : item) : [...state.branches, branch] });
+      },
+      removeBranch: (id) => set((state) => ({ branches: state.branches.filter((branch) => branch.id !== id) })),
+      saveUser: (user) => {
+        const state = get();
+        const exists = state.users.some((item) => item.id === user.id);
+        if (!exists && !isWithinLimit(state.planId, "maxUsers", state.users.length)) {
+          void services.notifications.notify({ title: "ถึงขีดจำกัดผู้ใช้แล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มบัญชีพนักงาน" });
+          return;
+        }
+        set({ users: exists ? state.users.map((item) => item.id === user.id ? user : item) : [...state.users, user] });
+      },
+      removeUser: (id) => set((state) => ({ users: state.users.filter((user) => user.id !== id) })),
+      saveProduct: (product) => {
+        const state = get();
+        const exists = state.products.some((item) => item.id === product.id);
+        if (!exists && !isWithinLimit(state.planId, "maxProducts", state.products.length)) {
+          void services.notifications.notify({ title: "ถึงขีดจำกัดสินค้าแล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มเมนูใหม่" });
+          return;
+        }
+        set({ products: exists ? state.products.map((item) => item.id === product.id ? product : item) : [product, ...state.products] });
+      },
+      removeProduct: (id) => set((state) => ({ products: state.products.filter((product) => product.id !== id) })),
+      saveCategory: (category) => set((state) => ({ categories: state.categories.some((item) => item.id === category.id) ? state.categories.map((item) => item.id === category.id ? category : item) : [...state.categories, category] })),
+      removeCategory: (id) => set((state) => ({ categories: state.categories.filter((category) => category.id !== id) })),
+      saveTable: (table) => {
+        const state = get();
+        const exists = state.tables.some((item) => item.id === table.id);
+        if (!exists && !isWithinLimit(state.planId, "maxTables", state.tables.length)) {
+          void services.notifications.notify({ title: "ถึงขีดจำกัดโต๊ะแล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มโต๊ะและ QR token" });
+          return;
+        }
+        set({ tables: exists ? state.tables.map((item) => item.id === table.id ? table : item) : [...state.tables, table] });
+      },
+      addNotification: (input) => set((state) => ({ notifications: [{ id: createId("notification"), tenantId: DEMO_TENANT_ID, ...input, createdAt: new Date().toISOString(), read: false }, ...state.notifications].slice(0, 50) })),
+      markNotificationsRead: () => set((state) => ({ notifications: state.notifications.map((notification) => ({ ...notification, read: true })) })),
+      resetDemo: () => set({ ...createDefaultDemoData(), planId: "starter", commerceSettings: { vatRate: 7, serviceChargeRate: 10, pricesIncludeVat: false, receiptFooter: "ขอบคุณที่ใช้บริการ • แล้วพบกันใหม่" } }),
+    }),
+    {
+      name: "flukex-pos:demo-store",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        users: state.users,
+        restaurants: state.restaurants,
+        branches: state.branches,
+        categories: state.categories,
+        products: state.products,
+        tables: state.tables,
+        orders: state.orders,
+        notifications: state.notifications,
+        planId: state.planId,
+        commerceSettings: state.commerceSettings,
+      }),
+      onRehydrateStorage: () => (state) => state?.setHydrated(true),
+    },
+  ),
+);
+
+export function getCurrentUsage(state: Pick<DemoStore, "branches" | "users" | "tables" | "products" | "orders">) {
+  return {
+    branches: state.branches.filter((branch) => branch.isActive).length,
+    users: state.users.length,
+    tables: state.tables.length,
+    products: state.products.length,
+    monthlyOrders: state.orders.length,
+  };
+}
+
+export function getUsageWithLimits(state: Pick<DemoStore, "branches" | "users" | "tables" | "products" | "orders" | "planId">) {
+  return { usage: getCurrentUsage(state), limits: getEntitlements(state.planId) };
+}

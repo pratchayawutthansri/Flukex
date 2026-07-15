@@ -1,0 +1,5 @@
+import type { Metadata } from "next";
+import { ChefHat } from "lucide-react";
+import { ProductLanding } from "@/components/marketing/product-landing";
+export const metadata: Metadata = { title: "ระบบจอครัว Kitchen Display", description: "แสดงออเดอร์อาหารแบบเรียลไทม์ แยกครัวและบาร์ พร้อมเวลารอและสถานะงาน" };
+export default function KitchenDisplayLanding() { return <ProductLanding eyebrow="Kitchen Display System" title="ทุกออเดอร์ชัด อ่านง่ายจากระยะไกล ครัวไม่ตกหล่น" description="จอ Dark mode แยกงานครัวและบาร์ อัปเดตสถานะแต่ละรายการ พร้อมไฮไลต์และเสียงเมื่อมีออเดอร์ใหม่" icon={ChefHat} bullets={["แยก Kitchen / Bar", "เวลารอแบบชัดเจน", "สถานะรายสินค้า", "เสียงแจ้งเตือน", "ไฮไลต์ออเดอร์ใหม่", "รองรับจอขนาดใหญ่"]} workflow={[{ title: "รับออเดอร์", description: "แจ้งเตือนทันทีจาก POS หรือ QR Ordering" }, { title: "เริ่มทำ", description: "เชฟเปลี่ยนรายการเป็น PREPARING" }, { title: "พร้อมเสิร์ฟ", description: "กด READY ให้พนักงานหน้าร้านเห็น" }]} demoHref="/kitchen" demoLabel="เปิดจอครัว" darkPreview/>; }

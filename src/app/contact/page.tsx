@@ -1,0 +1,6 @@
+import type { Metadata } from "next";
+import { Mail, MapPin, Phone } from "lucide-react";
+import { MarketingShell } from "@/components/marketing/marketing-shell";
+import { ContactForm } from "@/components/marketing/contact-form";
+export const metadata: Metadata = { title: "ติดต่อเรา", description: "ติดต่อทีม Flukex POS เพื่อขอคำแนะนำระบบ POS ร้านอาหาร" };
+export default function ContactPage() { return <MarketingShell><section className="mesh-bg px-4 py-20 sm:px-6"><div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.8fr_1.2fr]"><div><p className="text-sm font-bold text-primary">ติดต่อเรา</p><h1 className="mt-3 text-4xl font-bold">คุยกับทีมที่เข้าใจงานร้านอาหาร</h1><p className="mt-4 text-muted-foreground">กรอกข้อมูลเพื่อทดลอง flow แบบจำลอง เราไม่ส่งข้อมูลออกไปยัง API ภายนอก</p><div className="mt-8 space-y-4 text-sm">{[[Phone,"02-000-0000"],[Mail,"hello@flukexpos.demo"],[MapPin,"กรุงเทพมหานคร ประเทศไทย"]].map(([Icon,text]) => { const I = Icon as typeof Phone; return <div key={String(text)} className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-lg bg-secondary text-primary"><I className="size-5"/></span>{String(text)}</div>; })}</div></div><div className="rounded-xl border bg-card p-6 shadow-soft sm:p-8"><ContactForm/></div></div></section></MarketingShell>; }

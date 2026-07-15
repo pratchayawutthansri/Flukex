@@ -1,0 +1,5 @@
+import type { Metadata } from "next";
+import { MonitorSmartphone } from "lucide-react";
+import { ProductLanding } from "@/components/marketing/product-landing";
+export const metadata: Metadata = { title: "ระบบ POS ร้านอาหาร", description: "POS ร้านอาหารแบบ touch-friendly รับออเดอร์ คิดส่วนลด VAT Service charge และปิดบิลได้รวดเร็ว" };
+export default function RestaurantPosPage() { return <ProductLanding eyebrow="Restaurant POS" title="รับออเดอร์เร็วขึ้น ลดคิวและความผิดพลาดหน้าร้าน" description="หน้าจอ POS ที่ออกแบบให้พนักงานกดง่ายบนแท็บเล็ต คำนวณยอดทุกส่วนจาก business logic กลางอย่างแม่นยำ" icon={MonitorSmartphone} bullets={["ปุ่มใหญ่เหมาะกับการสัมผัส", "เลือกโต๊ะและค้นหาเมนู", "Modifier และหมายเหตุ", "ส่วนลด VAT Service charge", "เงินสด QR และบัตรจำลอง", "พิมพ์ใบเสร็จจำลอง"]} workflow={[{ title: "เลือกโต๊ะ", description: "เห็นสถานะทุกโต๊ะแล้วเริ่มออเดอร์ได้ทันที" }, { title: "เพิ่มเมนู", description: "ค้นหา กรองหมวด และใส่ตัวเลือกเพิ่มเติม" }, { title: "รับชำระ", description: "ตรวจยอด เลือกช่องทาง และปิดบิล" }]} demoHref="/pos" demoLabel="ทดลอง POS"/>; }

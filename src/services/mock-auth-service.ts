@@ -1,0 +1,54 @@
+import { DEMO_ACCOUNTS, DEMO_TENANT_ID } from "@/data/mock-data";
+import type { DemoSession } from "@/domain/types";
+import type { AuthCredentials, AuthService, RegistrationInput } from "./contracts";
+import { browserStorage, STORAGE_KEYS } from "./storage";
+
+interface RegisteredUser extends RegistrationInput { id: string }
+
+const wait = (duration = 350) => new Promise((resolve) => setTimeout(resolve, duration));
+
+export class MockAuthService implements AuthService {
+  async login(credentials: AuthCredentials): Promise<DemoSession> {
+    await wait();
+    const account = DEMO_ACCOUNTS.find((item) => item.email === credentials.email && item.password === credentials.password);
+    const registered = browserStorage
+      .get<RegisteredUser[]>(STORAGE_KEYS.registeredUsers, [])
+      .find((item) => item.email === credentials.email && item.password === credentials.password);
+
+    if (!account && !registered) throw new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาใช้บัญชีเดโมที่แสดงไว้");
+
+    const session: DemoSession = {
+      userId: registered?.id ?? `user_${account?.role.toLowerCase()}`,
+      tenantId: DEMO_TENANT_ID,
+      email: credentials.email,
+      role: account?.role ?? "OWNER",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+    browserStorage.set(STORAGE_KEYS.session, session);
+    return session;
+  }
+
+  async register(input: RegistrationInput): Promise<DemoSession> {
+    await wait(500);
+    const users = browserStorage.get<RegisteredUser[]>(STORAGE_KEYS.registeredUsers, []);
+    if (users.some((user) => user.email === input.email)) throw new Error("อีเมลนี้ถูกลงทะเบียนในเดโมแล้ว");
+    const user = { ...input, id: `registered_${Date.now()}` };
+    browserStorage.set(STORAGE_KEYS.registeredUsers, [...users, user]);
+    return this.login(input);
+  }
+
+  async logout() {
+    browserStorage.remove(STORAGE_KEYS.session);
+  }
+
+  async getSession() {
+    const session = browserStorage.get<DemoSession | null>(STORAGE_KEYS.session, null);
+    if (!session || new Date(session.expiresAt).getTime() < Date.now()) return null;
+    return session;
+  }
+
+  async resetPassword(email: string) {
+    await wait(600);
+    if (!email.includes("@")) throw new Error("กรุณากรอกอีเมลให้ถูกต้อง");
+  }
+}
