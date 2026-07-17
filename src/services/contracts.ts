@@ -1,4 +1,6 @@
 import type {
+  Branch,
+  Category,
   DemoSession,
   DemoUser,
   NotificationLog,
@@ -6,6 +8,7 @@ import type {
   PlanId,
   Product,
   Restaurant,
+  RestaurantTable,
 } from "@/domain/types";
 
 export interface AuthCredentials {
@@ -50,6 +53,9 @@ export type ProductRepository = Repository<Product>;
 export type OrderRepository = Repository<Order>;
 export type RestaurantRepository = Repository<Restaurant>;
 export type UserRepository = Repository<DemoUser>;
+export type BranchRepository = Repository<Branch>;
+export type CategoryRepository = Repository<Category>;
+export type TableRepository = Repository<RestaurantTable>;
 
 export interface SubscriptionRepository {
   getCurrentPlan(): Promise<PlanId>;
@@ -84,6 +90,10 @@ export interface ServiceContainer {
   products: ProductRepository;
   orders: OrderRepository;
   restaurants: RestaurantRepository;
+  branches: BranchRepository;
+  categories: CategoryRepository;
+  tables: TableRepository;
+  users: UserRepository;
   subscriptions: SubscriptionRepository;
   realtime: RealtimeService;
   notifications: NotificationService;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Banknote, BellRing, ClipboardList, LogOut, Monitor, QrCode, ReceiptText, Table2 } from "lucide-react";
@@ -8,7 +9,9 @@ import { useAuthSession } from "@/components/auth/auth-session-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatCurrency, formatTime } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { Order } from "@/domain/types";
+import { formatCurrency, formatDateTime, formatTime } from "@/lib/utils";
 import { useDemoStore } from "@/store/demo-store";
 
 const statusLabel = {
@@ -22,6 +25,7 @@ const statusLabel = {
 export function CashierWorkspace() {
   const router = useRouter();
   const { session, signOut } = useAuthSession();
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const orders = useDemoStore((state) => state.orders);
   const tables = useDemoStore((state) => state.tables);
   const restaurant = useDemoStore((state) => state.restaurants[0]);
@@ -97,7 +101,19 @@ export function CashierWorkspace() {
                 <thead className="bg-muted/60 text-xs text-muted-foreground"><tr><th className="px-5 py-3">ออเดอร์</th><th className="px-5 py-3">โต๊ะ</th><th className="px-5 py-3">เวลา</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3 text-right">ยอดรวม</th></tr></thead>
                 <tbody>
                   {orders.slice(0, 6).map((order) => (
-                    <tr key={order.id} className="border-t">
+                    <tr
+                      key={order.id}
+                      className="cursor-pointer border-t hover:bg-muted/40"
+                      onClick={() => setSelectedOrder(order)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedOrder(order);
+                        }
+                      }}
+                    >
                       <td className="px-5 py-4 font-bold">{order.orderNumber}</td>
                       <td className="px-5 py-4">{order.tableName}</td>
                       <td className="px-5 py-4 text-muted-foreground">{formatTime(order.createdAt)}</td>
@@ -125,6 +141,55 @@ export function CashierWorkspace() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={Boolean(selectedOrder)} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+        <DialogContent>
+          {selectedOrder && (
+            <>
+              <DialogHeader>
+                <DialogTitle>ออเดอร์ {selectedOrder.orderNumber}</DialogTitle>
+                <DialogDescription>
+                  {selectedOrder.tableName} · {formatDateTime(selectedOrder.createdAt)}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex items-center justify-between">
+                <Badge variant={selectedOrder.status === "READY" ? "success" : selectedOrder.status === "CANCELLED" ? "danger" : "outline"}>
+                  {statusLabel[selectedOrder.status]}
+                </Badge>
+                <span className="text-xs text-muted-foreground">ช่องทาง: {selectedOrder.source === "QR" ? "QR Ordering" : "POS"}</span>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {selectedOrder.items.map((item) => (
+                  <div key={item.id} className="rounded-lg bg-muted p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <span><strong>{item.quantity}×</strong> {item.productName}</span>
+                      <Badge variant={item.status === "READY" ? "success" : item.status === "CANCELLED" ? "danger" : "outline"}>{statusLabel[item.status]}</Badge>
+                    </div>
+                    {item.modifiers.length > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {item.modifiers.map((modifier) => modifier.name).join(", ")}
+                      </p>
+                    )}
+                    {item.note && <p className="mt-1 text-xs text-warning">หมายเหตุ: {item.note}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 space-y-1 border-t pt-4 text-sm">
+                <div className="flex justify-between text-muted-foreground"><span>ยอดรวมสินค้า</span><span>{formatCurrency(selectedOrder.totals.subtotal)}</span></div>
+                {selectedOrder.totals.discount > 0 && (
+                  <div className="flex justify-between text-muted-foreground"><span>ส่วนลด</span><span>-{formatCurrency(selectedOrder.totals.discount)}</span></div>
+                )}
+                <div className="flex justify-between text-muted-foreground"><span>ค่าบริการ</span><span>{formatCurrency(selectedOrder.totals.serviceCharge)}</span></div>
+                <div className="flex justify-between text-muted-foreground"><span>VAT</span><span>{formatCurrency(selectedOrder.totals.vat)}</span></div>
+                <div className="flex justify-between text-base font-bold"><span>ยอดสุทธิ</span><span>{formatCurrency(selectedOrder.totals.grandTotal)}</span></div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

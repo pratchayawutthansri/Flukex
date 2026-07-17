@@ -10,3 +10,4 @@ coverage
 .vercel
 .pnpm-store
 .DS_Store
+supabase/.temp

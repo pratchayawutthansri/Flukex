@@ -1,5 +1,15 @@
-import type { Order, PlanId, Product, Restaurant } from "@/domain/types";
-import type { OrderRepository, ProductRepository, Repository, RestaurantRepository, SubscriptionRepository } from "./contracts";
+import type { Branch, Category, DemoUser, Order, PlanId, Product, Restaurant, RestaurantTable } from "@/domain/types";
+import type {
+  BranchRepository,
+  CategoryRepository,
+  OrderRepository,
+  ProductRepository,
+  Repository,
+  RestaurantRepository,
+  SubscriptionRepository,
+  TableRepository,
+  UserRepository,
+} from "./contracts";
 import { browserStorage, STORAGE_KEYS } from "./storage";
 
 export class MockRepository<T extends { id: string }> implements Repository<T> {
@@ -30,6 +40,10 @@ export class MockRepository<T extends { id: string }> implements Repository<T> {
 export class MockProductRepository extends MockRepository<Product> implements ProductRepository {}
 export class MockOrderRepository extends MockRepository<Order> implements OrderRepository {}
 export class MockRestaurantRepository extends MockRepository<Restaurant> implements RestaurantRepository {}
+export class MockBranchRepository extends MockRepository<Branch> implements BranchRepository {}
+export class MockCategoryRepository extends MockRepository<Category> implements CategoryRepository {}
+export class MockTableRepository extends MockRepository<RestaurantTable> implements TableRepository {}
+export class MockUserRepository extends MockRepository<DemoUser> implements UserRepository {}
 
 export class MockSubscriptionRepository implements SubscriptionRepository {
   async getCurrentPlan() {

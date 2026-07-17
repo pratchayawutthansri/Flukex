@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NotificationInput, NotificationService } from "./contracts";
 
 function playBrowserAlert() {
@@ -22,6 +23,43 @@ export class BrowserNotificationService implements NotificationService {
     if (typeof window === "undefined") return;
     window.dispatchEvent(new CustomEvent("flukex:notification", { detail: input }));
     if (input.audible) playBrowserAlert();
+  }
+}
+
+// Persists to notification_logs (for the dashboard's notification list/audit trail) and
+// still shows the browser toast/audio. Real LINE/Discord/Telegram delivery is out of
+// scope for this pass — see docs/SUPABASE_INTEGRATION.md's "Notifications" checklist.
+export class SupabaseNotificationService extends BrowserNotificationService implements NotificationService {
+  private tenantIdPromise: Promise<string | null> | null = null;
+
+  constructor(private readonly client: SupabaseClient) {
+    super();
+  }
+
+  private async resolveTenantId(): Promise<string | null> {
+    this.tenantIdPromise ??= (async () => {
+      const { data: userData } = await this.client.auth.getUser();
+      if (!userData.user) return null;
+      const { data } = await this.client
+        .from("memberships")
+        .select("tenant_id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      return (data?.tenant_id as string | undefined) ?? null;
+    })();
+    return this.tenantIdPromise;
+  }
+
+  async notify(input: NotificationInput) {
+    await super.notify(input);
+    const tenantId = await this.resolveTenantId();
+    if (!tenantId) return;
+    await this.client.from("notification_logs").insert({
+      tenant_id: tenantId,
+      title: input.title,
+      message: input.message,
+      channel: input.channel ?? "BROWSER",
+    });
   }
 }
 

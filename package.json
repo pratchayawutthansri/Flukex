@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:seed": "tsx --env-file=.env.local supabase/seed.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "latest",
@@ -16,6 +17,8 @@
     "@radix-ui/react-label": "latest",
     "@radix-ui/react-progress": "latest",
     "@radix-ui/react-slot": "latest",
+    "@supabase/ssr": "latest",
+    "@supabase/supabase-js": "latest",
     "class-variance-authority": "latest",
     "clsx": "latest",
     "lucide-react": "latest",
@@ -36,7 +39,9 @@
     "@types/react-dom": "latest",
     "eslint": "9.39.1",
     "eslint-config-next": "16.2.10",
+    "supabase": "^2.109.1",
     "tailwindcss": "4.3.2",
+    "tsx": "latest",
     "typescript": "5.9.3",
     "vitest": "latest"
   },
