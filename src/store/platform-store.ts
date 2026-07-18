@@ -20,6 +20,67 @@ export function createTopUpReference(now = new Date(), suffix = Math.floor(Math.
   return `TOPUP-${date}-${String(suffix).padStart(4, "0")}`;
 }
 
+export function createAdminCreditReference(now = new Date(), suffix = Math.floor(Math.random() * 10_000)) {
+  const date = now.toISOString().slice(0, 10).replaceAll("-", "");
+  return `ADMIN-TOPUP-${date}-${String(suffix).padStart(4, "0")}`;
+}
+
+interface DirectCreditInput {
+  memberId: string;
+  amount: number;
+  operatorEmail: string;
+  note?: string;
+  createdAt: string;
+  ledgerId: string;
+  reference: string;
+  idempotencyKey: string;
+}
+
+export function applyDirectCredit(state: CreditDataSnapshot, input: DirectCreditInput) {
+  if (!Number.isSafeInteger(input.amount) || input.amount < 1 || input.amount > 1_000_000) {
+    return { state, changed: false, error: "จำนวนเครดิตต้องเป็นเลขจำนวนเต็มตั้งแต่ 1 ถึง 1,000,000" } as const;
+  }
+  if (state.ledger.some((entry) => entry.idempotencyKey === input.idempotencyKey || entry.reference === input.reference)) {
+    return { state, changed: false, error: "รายการนี้ถูกดำเนินการแล้ว" } as const;
+  }
+
+  const member = state.members.find((item) => item.id === input.memberId);
+  if (!member) return { state, changed: false, error: "ไม่พบบัญชีสมาชิกร้านค้า" } as const;
+  if (member.status !== "ACTIVE") {
+    return { state, changed: false, error: "เติมเครดิตได้เฉพาะร้านที่เปิดใช้งานอยู่" } as const;
+  }
+
+  const nextBalance = member.creditBalance + input.amount;
+  if (!Number.isSafeInteger(nextBalance)) {
+    return { state, changed: false, error: "ยอดเครดิตหลังทำรายการไม่ถูกต้อง" } as const;
+  }
+  const ledgerEntry: CreditLedgerEntry = {
+    id: input.ledgerId,
+    memberId: member.id,
+    tenantId: member.tenantId,
+    type: "TOP_UP",
+    amount: input.amount,
+    balanceAfter: nextBalance,
+    reference: input.reference,
+    description: input.note?.trim() || "เติมเครดิตโดยผู้ดูแลแพลตฟอร์ม",
+    createdAt: input.createdAt,
+    createdBy: input.operatorEmail,
+    idempotencyKey: input.idempotencyKey,
+  };
+
+  return {
+    changed: true as const,
+    ledgerEntry,
+    state: {
+      ...state,
+      members: state.members.map((item) => item.id === member.id
+        ? { ...item, creditBalance: nextBalance, updatedAt: input.createdAt }
+        : item),
+      ledger: [ledgerEntry, ...state.ledger],
+    },
+  };
+}
+
 export function createPasswordResetAuditEvent(
   member: PlatformMember,
   performedBy: string,
@@ -181,9 +242,12 @@ export function applyCreditReview(state: CreditDataSnapshot, input: ReviewInput)
 interface PlatformStore extends CreditDataSnapshot {
   hydrated: boolean;
   setHydrated: (hydrated: boolean) => void;
+  hydratePlatformData: (snapshot: CreditDataSnapshot) => void;
   requestTopUp: (input: { memberId: string; amount: number; requestedByEmail: string; note?: string }) => CreditTopUpRequest;
   registerMember: (input: { tenantId: string; businessName: string; ownerName: string; ownerEmail: string }) => PlatformMember;
   reviewTopUp: (input: Omit<ReviewInput, "reviewedAt" | "ledgerId">) => boolean;
+  addCreditDirectly: (input: { memberId: string; amount: number; operatorEmail: string; note?: string; idempotencyKey: string }) => CreditLedgerEntry;
+  applyServerCredit: (entry: CreditLedgerEntry) => void;
   setMemberStatus: (memberId: string, status: PlatformMember["status"]) => void;
   recordPasswordReset: (input: { memberId: string; performedBy: string }) => PlatformSecurityEvent;
   resetPlatformData: () => void;
@@ -195,6 +259,7 @@ export const usePlatformStore = create<PlatformStore>()(
       ...createDefaultCreditData(),
       hydrated: false,
       setHydrated: (hydrated) => set({ hydrated }),
+      hydratePlatformData: (snapshot) => set({ ...snapshot, hydrated: true }),
       registerMember: (input) => {
         const existing = get().members.find((member) => member.tenantId === input.tenantId || member.ownerEmail === input.ownerEmail);
         if (existing) return existing;
@@ -244,6 +309,27 @@ export const usePlatformStore = create<PlatformStore>()(
         set(result.state);
         return true;
       },
+      addCreditDirectly: (input) => {
+        const createdAt = new Date().toISOString();
+        const result = applyDirectCredit(get(), {
+          ...input,
+          createdAt,
+          ledgerId: createId("ledger"),
+          reference: createAdminCreditReference(new Date(createdAt)),
+        });
+        if (!result.changed) throw new Error(result.error);
+        set(result.state);
+        return result.ledgerEntry;
+      },
+      applyServerCredit: (entry) => set((state) => {
+        if (state.ledger.some((item) => item.id === entry.id || item.idempotencyKey === entry.idempotencyKey)) return state;
+        return {
+          members: state.members.map((member) => member.id === entry.memberId
+            ? { ...member, creditBalance: entry.balanceAfter, updatedAt: entry.createdAt }
+            : member),
+          ledger: [entry, ...state.ledger],
+        };
+      }),
       setMemberStatus: (memberId, status) => set((state) => ({
         members: state.members.map((member) => member.id === memberId ? { ...member, status, updatedAt: new Date().toISOString() } : member),
       })),

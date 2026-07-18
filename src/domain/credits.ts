@@ -43,6 +43,7 @@ export interface CreditLedgerEntry {
   description: string;
   createdAt: string;
   createdBy: string;
+  idempotencyKey?: string;
 }
 
 export interface PlatformSecurityEvent {

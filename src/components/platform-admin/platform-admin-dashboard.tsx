@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { useAuthSession } from "@/components/auth/auth-session-provider";
+import { DirectCreditDialog } from "@/components/platform-admin/direct-credit-dialog";
 import { MemberPasswordResetDialog } from "@/components/platform-admin/member-password-reset-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { CreditTopUpRequest, MemberStatus, PlatformMember } from "@/domain/credits";
+import type { CreditDataSnapshot, CreditTopUpRequest, MemberStatus, PlatformMember } from "@/domain/credits";
 import { formatDateTime } from "@/lib/utils";
+import { dataProvider } from "@/services/container";
 import { usePlatformStore } from "@/store/platform-store";
 
 const memberStatus: Record<MemberStatus, { label: string; variant: "outline" | "success" | "danger" }> = {
@@ -47,10 +49,12 @@ function MemberCard({
   member,
   onStatusChange,
   onPasswordReset,
+  onAddCredit,
 }: {
   member: PlatformMember;
   onStatusChange: (memberId: string, status: MemberStatus) => void;
   onPasswordReset: (member: PlatformMember) => void;
+  onAddCredit: (member: PlatformMember) => void;
 }) {
   const status = memberStatus[member.status];
   return (
@@ -66,6 +70,15 @@ function MemberCard({
         <div><p className="text-xs text-muted-foreground">แพ็กเกจ</p><p className="font-bold capitalize">{member.planId}</p></div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button
+          size="sm"
+          className="col-span-2"
+          onClick={() => onAddCredit(member)}
+          disabled={member.status !== "ACTIVE"}
+          aria-label={`เติมเครดิตให้ ${member.businessName}`}
+        >
+          <Coins />เติมเครดิต
+        </Button>
         {member.status !== "ACTIVE" && <Button size="sm" variant="outline" className="flex-1" onClick={() => onStatusChange(member.id, "ACTIVE")}><UserCheck />เปิดใช้งาน</Button>}
         {member.status === "ACTIVE" && <Button size="sm" variant="outline" className="flex-1 text-destructive" onClick={() => onStatusChange(member.id, "SUSPENDED")}><X />ระงับสมาชิก</Button>}
         <Button size="sm" variant="outline" onClick={() => onPasswordReset(member)} aria-label={`รีเซ็ตรหัสผ่าน ${member.businessName}`}><KeyRound />รีเซ็ตรหัส</Button>
@@ -83,10 +96,28 @@ export function PlatformAdminDashboard() {
   const securityEvents = usePlatformStore((state) => state.securityEvents);
   const reviewTopUp = usePlatformStore((state) => state.reviewTopUp);
   const setMemberStatus = usePlatformStore((state) => state.setMemberStatus);
+  const hydratePlatformData = usePlatformStore((state) => state.hydratePlatformData);
   const [search, setSearch] = useState("");
   const [review, setReview] = useState<ReviewState | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [passwordResetMember, setPasswordResetMember] = useState<PlatformMember | null>(null);
+  const [directCreditMember, setDirectCreditMember] = useState<PlatformMember | null>(null);
+
+  useEffect(() => {
+    if (dataProvider !== "supabase") return;
+    const controller = new AbortController();
+    void fetch("/api/platform-admin/credits", { signal: controller.signal })
+      .then(async (response) => {
+        const result = (await response.json()) as { snapshot?: CreditDataSnapshot; message?: string };
+        if (!response.ok || !result.snapshot) throw new Error(result.message || "โหลดข้อมูลเครดิตไม่สำเร็จ");
+        hydratePlatformData(result.snapshot);
+      })
+      .catch((cause) => {
+        if (cause instanceof DOMException && cause.name === "AbortError") return;
+        toast.error(cause instanceof Error ? cause.message : "โหลดข้อมูลเครดิตไม่สำเร็จ");
+      });
+    return () => controller.abort();
+  }, [hydratePlatformData]);
 
   const pendingRequests = requests.filter((request) => request.status === "PENDING");
   const filteredMembers = useMemo(() => {
@@ -186,7 +217,7 @@ export function PlatformAdminDashboard() {
             <div className="relative w-full sm:max-w-sm"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ค้นหาร้าน ชื่อ หรืออีเมล" className="pl-10" aria-label="ค้นหาสมาชิก" /></div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredMembers.map((member) => <MemberCard key={member.id} member={member} onStatusChange={updateMemberStatus} onPasswordReset={setPasswordResetMember} />)}
+            {filteredMembers.map((member) => <MemberCard key={member.id} member={member} onStatusChange={updateMemberStatus} onPasswordReset={setPasswordResetMember} onAddCredit={setDirectCreditMember} />)}
           </div>
         </section>
 
@@ -236,6 +267,7 @@ export function PlatformAdminDashboard() {
       </div>
 
       <MemberPasswordResetDialog member={passwordResetMember} operatorEmail={session?.email} onClose={() => setPasswordResetMember(null)} />
+      <DirectCreditDialog key={directCreditMember?.id ?? "closed"} member={directCreditMember} operatorEmail={session?.email} onClose={() => setDirectCreditMember(null)} />
 
       <Dialog open={Boolean(review)} onOpenChange={(open) => !open && setReview(null)}>
         <DialogContent>
