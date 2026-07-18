@@ -46,7 +46,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
   starter: {
     id: "starter",
     name: "Starter",
-    priceMonthly: 990,
+    priceMonthly: 1490,
     description: "ครบสำหรับร้านอาหารหนึ่งสาขาที่กำลังเติบโต",
     highlighted: true,
     features: ["POS + QR Ordering", "จอครัวและบาร์", "รายงานยอดขาย", "ส่วนลด VAT Service charge", "เอาแบรนด์ระบบออก"],
