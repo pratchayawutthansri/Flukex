@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Banknote, BellRing, ClipboardList, LogOut, Monitor, QrCode, ReceiptText, Table2 } from "lucide-react";
+import { ArrowRight, Banknote, BellRing, CheckCircle2, ClipboardList, Eye, LogOut, Monitor, QrCode, ReceiptText, Table2 } from "lucide-react";
+import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { useAuthSession } from "@/components/auth/auth-session-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Order } from "@/domain/types";
 import { formatCurrency, formatDateTime, formatTime } from "@/lib/utils";
 import { useDemoStore } from "@/store/demo-store";
@@ -25,11 +26,13 @@ const statusLabel = {
 export function CashierWorkspace() {
   const router = useRouter();
   const { session, signOut } = useAuthSession();
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const orders = useDemoStore((state) => state.orders);
+  const updateOrderStatus = useDemoStore((state) => state.updateOrderStatus);
   const tables = useDemoStore((state) => state.tables);
   const restaurant = useDemoStore((state) => state.restaurants[0]);
   const branch = useDemoStore((state) => state.branches[0]);
+  const selectedOrder = selectedOrderId ? orders.find((order) => order.id === selectedOrderId) ?? null : null;
   const firstTable = tables[0];
   const qrHref = restaurant && firstTable ? `/order/${restaurant.slug}/table/${firstTable.token}` : "/dashboard/tables";
   const paidOrders = orders.filter((order) => Boolean(order.paidAt));
@@ -40,6 +43,15 @@ export function CashierWorkspace() {
   const logout = async () => {
     await signOut();
     router.replace("/login");
+  };
+
+  const acceptOrder = (order: Order) => {
+    if (order.status !== "WAITING") return;
+
+    updateOrderStatus(order.id, null, "PREPARING");
+    toast.success(`ยืนยันรับออเดอร์ ${order.orderNumber} แล้ว`, {
+      description: `${order.tableName} • ส่งรายการให้ครัวและบาร์แล้ว`,
+    });
   };
 
   return (
@@ -97,28 +109,49 @@ export function CashierWorkspace() {
               <Badge variant="outline">{orders.length} ออเดอร์</Badge>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left text-sm">
-                <thead className="bg-muted/60 text-xs text-muted-foreground"><tr><th className="px-5 py-3">ออเดอร์</th><th className="px-5 py-3">โต๊ะ</th><th className="px-5 py-3">เวลา</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3 text-right">ยอดรวม</th></tr></thead>
+              <table className="w-full min-w-[820px] text-left text-sm">
+                <thead className="bg-muted/60 text-xs text-muted-foreground"><tr><th className="px-5 py-3">ออเดอร์</th><th className="px-5 py-3">โต๊ะ</th><th className="px-5 py-3">เวลา</th><th className="px-5 py-3">สถานะ</th><th className="px-5 py-3 text-right">ยอดรวม</th><th className="px-5 py-3 text-right">การทำงาน</th></tr></thead>
                 <tbody>
                   {orders.slice(0, 6).map((order) => (
-                    <tr
-                      key={order.id}
-                      className="cursor-pointer border-t hover:bg-muted/40"
-                      onClick={() => setSelectedOrder(order)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setSelectedOrder(order);
-                        }
-                      }}
-                    >
-                      <td className="px-5 py-4 font-bold">{order.orderNumber}</td>
+                    <tr key={order.id} className="border-t hover:bg-muted/40">
+                      <td className="px-5 py-4 font-bold">
+                        <button
+                          type="button"
+                          className="rounded-sm underline-offset-4 hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          onClick={() => setSelectedOrderId(order.id)}
+                          aria-label={`ดูรายละเอียดออเดอร์ ${order.orderNumber}`}
+                        >
+                          {order.orderNumber}
+                        </button>
+                      </td>
                       <td className="px-5 py-4">{order.tableName}</td>
                       <td className="px-5 py-4 text-muted-foreground">{formatTime(order.createdAt)}</td>
                       <td className="px-5 py-4"><Badge variant={order.status === "READY" ? "success" : order.status === "CANCELLED" ? "danger" : "outline"}>{statusLabel[order.status]}</Badge></td>
                       <td className="px-5 py-4 text-right font-semibold">{formatCurrency(order.totals.grandTotal)}</td>
+                      <td className="px-5 py-3 text-right">
+                        {order.status === "WAITING" ? (
+                          <Button
+                            size="sm"
+                            className="min-h-11 whitespace-nowrap"
+                            onClick={() => acceptOrder(order)}
+                            aria-label={`ยืนยันรับออเดอร์ ${order.orderNumber}`}
+                          >
+                            <CheckCircle2 />
+                            ยืนยันรับออเดอร์
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="min-h-11 whitespace-nowrap"
+                            onClick={() => setSelectedOrderId(order.id)}
+                            aria-label={`ดูรายละเอียดออเดอร์ ${order.orderNumber}`}
+                          >
+                            <Eye />
+                            ดูรายละเอียด
+                          </Button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -142,7 +175,7 @@ export function CashierWorkspace() {
         </div>
       </div>
 
-      <Dialog open={Boolean(selectedOrder)} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+      <Dialog open={Boolean(selectedOrder)} onOpenChange={(open) => !open && setSelectedOrderId(null)}>
         <DialogContent>
           {selectedOrder && (
             <>
@@ -186,6 +219,19 @@ export function CashierWorkspace() {
                 <div className="flex justify-between text-muted-foreground"><span>VAT</span><span>{formatCurrency(selectedOrder.totals.vat)}</span></div>
                 <div className="flex justify-between text-base font-bold"><span>ยอดสุทธิ</span><span>{formatCurrency(selectedOrder.totals.grandTotal)}</span></div>
               </div>
+
+              {selectedOrder.status === "WAITING" && (
+                <DialogFooter>
+                  <Button
+                    size="lg"
+                    className="min-h-12 w-full"
+                    onClick={() => acceptOrder(selectedOrder)}
+                  >
+                    <CheckCircle2 />
+                    ยืนยันรับออเดอร์
+                  </Button>
+                </DialogFooter>
+              )}
             </>
           )}
         </DialogContent>
