@@ -89,13 +89,24 @@ export function RegisterForm() {
 
       {step === 1 ? (
         <form onSubmit={createAccount} className="space-y-5">
+          <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
+            <div className="flex items-start gap-3">
+              <Store className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-semibold">หน้านี้สำหรับเจ้าของร้านที่ต้องการสร้างร้านใหม่</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  แคชเชียร์ ครัว บาร์ และผู้จัดการ ไม่ต้องสมัครซ้ำ ให้เจ้าของหรือผู้จัดการเพิ่มบัญชีจากเมนูพนักงาน
+                </p>
+              </div>
+            </div>
+          </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="register-name">ชื่อผู้ดูแล</Label>
+              <Label htmlFor="register-name">ชื่อเจ้าของร้าน</Label>
               <Input id="register-name" value={form.name} onChange={(event) => update("name", event.target.value)} autoComplete="name" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="register-restaurant">ชื่อร้านอาหาร</Label>
+              <Label htmlFor="register-restaurant">ชื่อร้านอาหาร <span className="text-destructive">*</span></Label>
               <Input id="register-restaurant" value={form.restaurantName} onChange={(event) => update("restaurantName", event.target.value)} required />
             </div>
           </div>
