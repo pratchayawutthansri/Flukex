@@ -26,9 +26,8 @@ export class BrowserNotificationService implements NotificationService {
   }
 }
 
-// Persists to notification_logs (for the dashboard's notification list/audit trail) and
-// still shows the browser toast/audio. Real LINE/Discord/Telegram delivery is out of
-// scope for this pass — see docs/SUPABASE_INTEGRATION.md's "Notifications" checklist.
+// Persists to notification_logs, shows the browser toast/audio, and requests
+// server-side Discord delivery when that tenant has configured a webhook.
 export class SupabaseNotificationService extends BrowserNotificationService implements NotificationService {
   private tenantIdPromise: Promise<string | null> | null = null;
 
@@ -60,6 +59,13 @@ export class SupabaseNotificationService extends BrowserNotificationService impl
       message: input.message,
       channel: input.channel ?? "BROWSER",
     });
+    if (!input.channel || input.channel === "BROWSER") {
+      void fetch("/api/integrations/discord/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: input.title, message: input.message }),
+      }).catch(() => undefined);
+    }
   }
 }
 
@@ -67,9 +73,6 @@ export class MockDiscordNotificationService extends BrowserNotificationService {
 export class MockLineNotificationService extends BrowserNotificationService {}
 export class MockTelegramNotificationService extends BrowserNotificationService {}
 
-export class DiscordWebhookNotificationService implements NotificationService {
-  async notify(): Promise<void> { throw new Error("Discord webhook is disabled in demo mode"); }
-}
 export class LineMessagingNotificationService implements NotificationService {
   async notify(): Promise<void> { throw new Error("LINE Messaging API is disabled in demo mode"); }
 }

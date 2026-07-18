@@ -1,6 +1,7 @@
-# Future Supabase Integration Checklist
+# Supabase Production Integration Checklist
 
-เดโมนี้ยังไม่มี Supabase dependency และต้องไม่สร้าง project ในระยะนี้
+โค้ดมี Supabase adapters และ migrations แล้ว แต่การ Deploy จริงต้องตั้ง environment,
+รัน migrations และทดสอบ RLS ใน project ของแต่ละ environment
 
 ## Project and environment
 
@@ -64,11 +65,13 @@
 
 ## Notifications
 
-- [ ] Implement provider adapters behind `NotificationService`
-- [ ] Store connection secrets encrypted and server-only
+- [x] Route Discord delivery through `NotificationService` and authenticated server API
+- [x] Store Discord connection secrets encrypted with AES-256-GCM and server-only access
+- [x] Validate official Discord webhook hosts and prevent client-side secret reads
+- [x] Enforce Owner configuration access and Professional entitlement server-side
 - [ ] Queue delivery with retries/dead-letter handling
 - [ ] Add consent, opt-out and audit logs for LINE/Telegram
-- [ ] Verify Discord/Telegram/LINE requests server-side
+- [ ] Complete LINE/Telegram provider adapters and request verification
 
 ## Migration and validation
 

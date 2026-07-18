@@ -53,7 +53,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_DEMO_REALTIME=broadcast-channel
 ```
 
-เดโมรองรับเฉพาะ `mock` หากตั้งค่า provider อื่นระบบจะหยุดพร้อมข้อความชัดเจน เพื่อป้องกันการเชื่อมต่อที่ไม่ได้ตั้งใจ
+โหมด `mock` ใช้สำหรับสาธิตบนอุปกรณ์เดียว ส่วนการใช้งานจริงและ Discord Webhook
+ต้องตั้ง `NEXT_PUBLIC_DATA_PROVIDER=supabase` พร้อม Supabase credentials
 
 ## Deploy บน Vercel
 
@@ -63,9 +64,13 @@ NEXT_PUBLIC_DEMO_REALTIME=broadcast-channel
 4. Install Command: `pnpm install`
 5. Build Command: `pnpm build`
 6. เพิ่ม environment variables ตาม `.env.example` โดยเปลี่ยน `NEXT_PUBLIC_APP_URL` เป็น production URL
-7. Deploy และตรวจ `/robots.txt`, `/sitemap.xml`, Marketing pages และ noindex ของ `/order/...`
+7. รัน Supabase migrations รวมถึง `0011_tenant_integrations.sql`
+8. สร้าง `INTEGRATION_ENCRYPTION_KEY` แบบสุ่มอย่างน้อย 32 ตัวอักษรและตั้งเฉพาะฝั่ง Server
+9. หากต้องการ Webhook กลางเพียงตัวเดียว สามารถตั้ง `DISCORD_WEBHOOK_URL` บน Hosting แทนการกรอกใน Dashboard
+10. Deploy และตรวจ `/robots.txt`, `/sitemap.xml`, Marketing pages และ noindex ของ `/order/...`
 
-ไม่ต้องเพิ่ม Supabase, Cloudflare, Discord, LINE, Telegram หรือ Payment credentials
+ห้ามใส่ `SUPABASE_SERVICE_ROLE_KEY`, `INTEGRATION_ENCRYPTION_KEY` หรือ
+`DISCORD_WEBHOOK_URL` ไว้ในตัวแปรที่ขึ้นต้นด้วย `NEXT_PUBLIC_` และห้าม commit ค่าเหล่านี้
 
 ## เอกสาร
 
@@ -77,5 +82,6 @@ NEXT_PUBLIC_DEMO_REALTIME=broadcast-channel
 
 - Local Storage เป็นข้อมูลระดับ Browser/Device ไม่ใช่ shared cloud database
 - BroadcastChannel ทำงานระหว่างแท็บใน origin เดียวกัน ไม่ใช่ realtime ข้ามอุปกรณ์
-- Payment, printer, external notification และ subscription billing เป็น simulation
+- Payment, printer, LINE, Telegram และ subscription billing เป็น simulation
+- Discord Webhook ใช้งานจริงเมื่อเปิด Supabase mode, รัน migration และตั้ง encryption key แล้ว
 - ข้อมูลรายงานบางส่วนเป็น mock aggregates เพื่อให้ demo story สมบูรณ์
