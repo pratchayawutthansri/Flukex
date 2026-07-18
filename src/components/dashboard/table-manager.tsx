@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Copy, Edit3, ExternalLink, Plus, QrCode, Users } from "lucide-react";
+import { Copy, Edit3, ExternalLink, LockKeyhole, Plus, QrCode, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,9 +44,10 @@ export function TableManager() {
 
   const save = () => {
     if (!editing?.name || !editing.branchId) return;
-    saveTable({ ...editing, updatedAt: new Date().toISOString() });
+    const saved = saveTable({ ...editing, updatedAt: new Date().toISOString() });
+    if (!saved) return;
     setEditing(null);
-    void services.notifications.notify({ title: "บันทึกโต๊ะแล้ว", message: "QR token พร้อมใช้งานทันที" });
+    void services.notifications.notify({ title: "บันทึกโต๊ะแล้ว", message: "QR Code ถูกล็อกกับโต๊ะนี้เรียบร้อย" });
   };
 
   return (
@@ -74,14 +75,14 @@ export function TableManager() {
       <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editing?.name ? "แก้ไขโต๊ะ" : "เพิ่มโต๊ะ"}</DialogTitle><DialogDescription>QR token จะผูกกับร้านและสาขาปัจจุบันเท่านั้น</DialogDescription></DialogHeader>
-          {editing && <div className="space-y-4"><div className="space-y-2"><Label htmlFor="table-name">ชื่อโต๊ะ</Label><Input id="table-name" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></div><div className="space-y-2"><Label htmlFor="table-seats">จำนวนที่นั่ง</Label><Input id="table-seats" type="number" min="1" max="30" value={editing.seats} onChange={(event) => setEditing({ ...editing, seats: Number(event.target.value) })} /></div><div className="space-y-2"><Label htmlFor="table-token">QR Token</Label><Input id="table-token" value={editing.token} onChange={(event) => setEditing({ ...editing, token: event.target.value })} /></div></div>}
+          {editing && <div className="space-y-4"><div className="space-y-2"><Label htmlFor="table-name">ชื่อโต๊ะ</Label><Input id="table-name" value={editing.name} onChange={(event) => setEditing({ ...editing, name: event.target.value })} /></div><div className="space-y-2"><Label htmlFor="table-seats">จำนวนที่นั่ง</Label><Input id="table-seats" type="number" min="1" max="30" value={editing.seats} onChange={(event) => setEditing({ ...editing, seats: Number(event.target.value) })} /></div><div className="space-y-2"><Label htmlFor="table-token">QR Token ประจำโต๊ะ</Label><div className="relative"><LockKeyhole className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input id="table-token" className="bg-muted pl-10" value={editing.token} readOnly aria-describedby="table-token-help" /></div><p id="table-token-help" className="text-xs leading-5 text-muted-foreground">ระบบสร้างให้อัตโนมัติและล็อก 1 QR Code ต่อ 1 โต๊ะ เพื่อป้องกันออเดอร์เข้าผิดโต๊ะ</p></div></div>}
           <DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>ยกเลิก</Button><Button onClick={save}>บันทึกโต๊ะ</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={Boolean(qrTable)} onOpenChange={(open) => !open && setQrTable(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>QR Ordering • {qrTable?.name}</DialogTitle><DialogDescription>สแกนเพื่อเปิดเมนูของร้านและโต๊ะนี้ หน้านี้ตั้งค่า noindex</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>QR Ordering • {qrTable?.name}</DialogTitle><DialogDescription>QR Code นี้ใช้ได้เฉพาะ {qrTable?.name} และไม่สามารถสลับไปโต๊ะอื่นได้ หน้านี้ตั้งค่า noindex</DialogDescription></DialogHeader>
           <div className="mx-auto rounded-2xl border bg-white p-5"><QRCodeSVG value={absolute} size={220} level="M" includeMargin aria-label={`QR Code ${qrTable?.name}`} /></div>
           <div className="flex items-center gap-2 rounded-lg bg-muted p-2"><code className="min-w-0 flex-1 truncate text-xs">{absolute}</code><Button size="icon" variant="ghost" aria-label="คัดลอก URL" onClick={() => { void navigator.clipboard.writeText(absolute); void services.notifications.notify({ title: "คัดลอกแล้ว", message: "QR ordering URL อยู่ในคลิปบอร์ด" }); }}><Copy /></Button></div>
           <DialogFooter><Button variant="outline" asChild><Link href={orderUrl} target="_blank">เปิดหน้าเมนู<ExternalLink /></Link></Button></DialogFooter>

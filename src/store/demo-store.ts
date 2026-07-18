@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { getEntitlements, isWithinLimit } from "@/config/plans";
 import { createDefaultDemoData, createNewTenantData, DEMO_TENANT_ID, type DemoData } from "@/data/mock-data";
 import { calculateOrderTotals, deriveOrderCalculationOptions } from "@/domain/calculations";
+import { isTableTokenAvailable, normalizeTableToken } from "@/domain/qr-ordering";
 import type { Branch, Category, DemoUser, NotificationLog, Order, OrderItem, OrderStatus, PlanId, Product, Restaurant, RestaurantTable, TableStatus } from "@/domain/types";
 import { createId } from "@/lib/utils";
 import { dataProvider, services } from "@/services/container";
@@ -52,7 +53,7 @@ interface DemoStore extends DemoData {
   removeProduct: (id: string) => void;
   saveCategory: (category: Category) => void;
   removeCategory: (id: string) => void;
-  saveTable: (table: RestaurantTable) => void;
+  saveTable: (table: RestaurantTable) => boolean;
   addNotification: (input: Pick<NotificationLog, "title" | "message" | "channel">) => void;
   markNotificationsRead: () => void;
   resetDemo: () => void;
@@ -293,14 +294,24 @@ export const useDemoStore = create<DemoStore>()(
       },
       saveTable: (table) => {
         const state = get();
-        const scopedTable = { ...table, tenantId: state.activeTenantId };
+        const normalizedToken = normalizeTableToken(table.token);
+        const scopedTable = { ...table, tenantId: state.activeTenantId, token: normalizedToken };
         const exists = state.tables.some((item) => item.id === scopedTable.id);
+        if (!normalizedToken) {
+          toast.error("ไม่พบ QR token ของโต๊ะ", { description: "กรุณาสร้างโต๊ะใหม่เพื่อออก QR Code" });
+          return false;
+        }
+        if (!isTableTokenAvailable(state.tables, normalizedToken, scopedTable.id)) {
+          toast.error("QR Code นี้ถูกผูกกับโต๊ะอื่นแล้ว", { description: "แต่ละโต๊ะต้องใช้ QR token ที่ไม่ซ้ำกัน" });
+          return false;
+        }
         if (!exists && !isWithinLimit(state.planId, "maxTables", state.tables.length)) {
           void services.notifications.notify({ title: "ถึงขีดจำกัดโต๊ะแล้ว", message: "เปลี่ยนแพ็กเกจเพื่อเพิ่มโต๊ะและ QR token" });
-          return;
+          return false;
         }
         set({ tables: exists ? state.tables.map((item) => item.id === scopedTable.id ? scopedTable : item) : [...state.tables, scopedTable] });
         if (dataProvider === "supabase") void services.tables.save(scopedTable).catch((error) => reportPersistError("บันทึกโต๊ะไม่สำเร็จ", error));
+        return true;
       },
       addNotification: (input) => set((state) => ({ notifications: [{ id: createId("notification"), tenantId: state.activeTenantId, ...input, createdAt: new Date().toISOString(), read: false }, ...state.notifications].slice(0, 50) })),
       markNotificationsRead: () => set((state) => ({ notifications: state.notifications.map((notification) => ({ ...notification, read: true })) })),

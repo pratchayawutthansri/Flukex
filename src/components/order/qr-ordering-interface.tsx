@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useMemo, useState } from "react";
-import { BellRing, Check, ChefHat, ChevronRight, Minus, Plus, ReceiptText, Search, ShoppingBag, ShoppingCart, Store, X } from "lucide-react";
+import { BellRing, Check, ChefHat, ChevronRight, LockKeyhole, Minus, Plus, ReceiptText, Search, ShieldX, ShoppingBag, ShoppingCart, Store, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,16 +10,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { calculateLineTotal, calculateOrderTotals } from "@/domain/calculations";
+import { resolveQrTable } from "@/domain/qr-ordering";
 import type { Order, OrderItem, Product, ProductModifier } from "@/domain/types";
 import { cn, createId, formatCurrency } from "@/lib/utils";
 import { services } from "@/services/container";
 import { useDemoStore } from "@/store/demo-store";
 interface Draft{product:Product;quantity:number;modifiers:ProductModifier[];note:string}
 
-export function QrOrderingInterface({tableToken}:{tableToken:string}){
- const restaurant=useDemoStore(s=>s.restaurants[0]);const tables=useDemoStore(s=>s.tables);const products=useDemoStore(s=>s.products);const categories=useDemoStore(s=>s.categories);const orders=useDemoStore(s=>s.orders);const addOrder=useDemoStore(s=>s.addOrder);const updateTable=useDemoStore(s=>s.updateTableStatus);const table=tables.find(t=>t.token===tableToken)??tables[0];
+function QrAccessError({disabled=false}:{disabled?:boolean}){
+ return <main id="main-content" className="grid min-h-dvh place-items-center bg-[#fffaf7] px-4 text-[#3b0b0b]"><section className="w-full max-w-md rounded-2xl border bg-white p-7 text-center shadow-soft" aria-labelledby="qr-error-title"><span className="mx-auto grid size-16 place-items-center rounded-2xl bg-destructive/10 text-destructive"><ShieldX className="size-8" aria-hidden="true"/></span><h1 id="qr-error-title" className="mt-5 text-2xl font-bold">{disabled?"QR Code ของโต๊ะนี้ถูกปิดใช้งาน":"QR Code ไม่ถูกต้อง"}</h1><p className="mt-2 leading-7 text-muted-foreground">{disabled?"กรุณาติดต่อพนักงานเพื่อขอ QR Code ที่เปิดใช้งาน":"ลิงก์นี้ไม่ได้ผูกกับโต๊ะของร้าน กรุณาสแกน QR Code ที่ติดอยู่บนโต๊ะอีกครั้ง"}</p><div className="mt-6 rounded-xl bg-muted p-4 text-sm"><LockKeyhole className="mx-auto size-5 text-primary" aria-hidden="true"/><p className="mt-2 font-semibold">1 QR Code ใช้ได้เฉพาะ 1 โต๊ะ</p><p className="mt-1 text-xs text-muted-foreground">ระบบจะไม่เลือกโต๊ะอื่นแทนโดยอัตโนมัติ</p></div></section></main>;
+}
+
+export function QrOrderingInterface({restaurantSlug,tableToken}:{restaurantSlug:string;tableToken:string}){
+ const restaurants=useDemoStore(s=>s.restaurants);const branches=useDemoStore(s=>s.branches);const tables=useDemoStore(s=>s.tables);const products=useDemoStore(s=>s.products);const categories=useDemoStore(s=>s.categories);const orders=useDemoStore(s=>s.orders);const hydrated=useDemoStore(s=>s.hydrated);const addOrder=useDemoStore(s=>s.addOrder);const updateTable=useDemoStore(s=>s.updateTableStatus);const resolution=resolveQrTable({restaurantSlug,tableToken,restaurants,branches,tables});const restaurant=resolution?.restaurant;const table=resolution?.table;
  const[category,setCategory]=useState("ALL");const[search,setSearch]=useState("");const[draft,setDraft]=useState<Draft|null>(null);const[cart,setCart]=useState<OrderItem[]>([]);const[cartOpen,setCartOpen]=useState(false);const[submitted,setSubmitted]=useState<Order|null>(null);const[tab,setTab]=useState<"MENU"|"STATUS">("MENU");
- const visible=useMemo(()=>products.filter(p=>p.isAvailable&&(category==="ALL"||p.categoryId===category)&&`${p.name} ${p.description}`.toLowerCase().includes(search.toLowerCase())),[products,category,search]);const totals=useMemo(()=>calculateOrderTotals(cart),[cart]);
+ const visible=useMemo(()=>products.filter(p=>p.tenantId===table?.tenantId&&p.isAvailable&&(category==="ALL"||p.categoryId===category)&&`${p.name} ${p.description}`.toLowerCase().includes(search.toLowerCase())),[products,table?.tenantId,category,search]);const totals=useMemo(()=>calculateOrderTotals(cart),[cart]);
+ if(!hydrated)return <main id="main-content" className="grid min-h-dvh place-items-center bg-[#fffaf7] px-4 text-center text-[#3b0b0b]"><div role="status"><span className="mx-auto block size-10 animate-pulse rounded-xl bg-primary/15"/><p className="mt-4 font-semibold">กำลังตรวจสอบ QR Code และโต๊ะ...</p></div></main>;
+ if(!restaurant||!table)return <QrAccessError/>;
+ if(table.status==="DISABLED")return <QrAccessError disabled/>;
  const addDraft=()=>{if(!draft)return;setCart(items=>[...items,{id:createId("item"),productId:draft.product.id,productName:draft.product.name,station:draft.product.station,quantity:draft.quantity,unitPrice:draft.product.price,modifiers:draft.modifiers,note:draft.note||undefined,status:"WAITING"}]);setDraft(null);};
  const adjust=(id:string,d:number)=>setCart(items=>items.map(i=>i.id===id?{...i,quantity:Math.max(1,i.quantity+d)}:i));
  const submit=()=>{if(!table||!cart.length)return;const now=new Date().toISOString();const order:Order={id:createId("order"),tenantId:table.tenantId,branchId:table.branchId,tableId:table.id,tableName:table.name,orderNumber:`#${1040+orders.length+1}`,source:"QR",status:"WAITING",items:cart,totals,createdAt:now,updatedAt:now};addOrder(order);void services.notifications.notify({title:"ส่งออเดอร์สำเร็จ",message:`${order.orderNumber} ส่งเข้าครัวและบาร์แล้ว`,audible:true});setSubmitted(order);setCart([]);setCartOpen(false);setTab("STATUS");};
