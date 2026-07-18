@@ -20,6 +20,8 @@ import { formatDateTime } from "@/lib/utils";
 import { usePlatformStore } from "@/store/platform-store";
 
 const LINE_ADD_FRIEND_URL = getSafeLineAddFriendUrl(process.env.NEXT_PUBLIC_LINE_ADD_FRIEND_URL);
+const LINE_ADMIN_ID = "flukexd_";
+const LINE_CONTACT_MESSAGE = `กรุณาติดต่อแอดมินที่ ID ไลน์ ${LINE_ADMIN_ID}`;
 
 const requestStatus: Record<CreditRequestStatus, { label: string; icon: typeof Clock3; variant: "outline" | "success" | "danger" }> = {
   PENDING: { label: "รอตรวจสอบ", icon: Clock3, variant: "outline" },
@@ -54,7 +56,7 @@ export function CreditWallet() {
       const request = requestTopUp({ memberId: member.id, amount, requestedByEmail: session.email, note });
       setCreatedReference(request.reference);
       setNote("");
-      toast.success("สร้างคำขอเติมเครดิตแล้ว", { description: request.reference });
+      toast.success("สร้างคำขอเติมเครดิตแล้ว", { description: LINE_CONTACT_MESSAGE });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "สร้างคำขอไม่สำเร็จ");
     }
@@ -67,6 +69,15 @@ export function CreditWallet() {
       toast.success("คัดลอกเลขอ้างอิงแล้ว");
     } catch {
       toast.error("คัดลอกไม่สำเร็จ กรุณาเลือกข้อความด้วยตนเอง");
+    }
+  };
+
+  const copyLineId = async () => {
+    try {
+      await navigator.clipboard.writeText(LINE_ADMIN_ID);
+      toast.success("คัดลอก LINE ID แล้ว", { description: LINE_ADMIN_ID });
+    } catch {
+      toast.error(`คัดลอกไม่สำเร็จ กรุณาคัดลอก LINE ID: ${LINE_ADMIN_ID} ด้วยตนเอง`);
     }
   };
 
@@ -156,21 +167,28 @@ export function CreditWallet() {
       <Dialog open={Boolean(createdReference)} onOpenChange={(open) => !open && setCreatedReference(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>ส่งเลขอ้างอิงนี้ให้ผู้ดูแลทาง LINE</DialogTitle>
-            <DialogDescription>คำขอจะอยู่ในสถานะรอตรวจสอบจนกว่าผู้ดูแล Flukex จะยืนยันหลักฐานและกดอนุมัติ</DialogDescription>
+            <DialogTitle>{LINE_CONTACT_MESSAGE}</DialogTitle>
+            <DialogDescription>ส่งเลขอ้างอิงพร้อมหลักฐานให้แอดมิน คำขอจะอยู่ในสถานะรอตรวจสอบจนกว่าผู้ดูแล Flukex จะยืนยันและกดอนุมัติ</DialogDescription>
           </DialogHeader>
           <div className="grid gap-5 sm:grid-cols-[160px_1fr] sm:items-center">
             <div className="mx-auto grid size-40 place-items-center rounded-xl border bg-white p-3">
               {LINE_ADD_FRIEND_URL ? <QRCodeSVG value={LINE_ADD_FRIEND_URL} size={132} title="QR Code เพิ่มเพื่อน LINE" /> : <MessageCircle className="size-14 text-muted-foreground/35" aria-hidden="true" />}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">เลขอ้างอิง</p>
+              <div className="rounded-lg border border-[#06C755]/30 bg-[#06C755]/10 p-3">
+                <p className="text-xs font-bold text-[#07883f]">LINE ID สำหรับเติมเครดิต</p>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <strong className="font-mono text-lg">{LINE_ADMIN_ID}</strong>
+                  <Button type="button" variant="outline" size="sm" onClick={copyLineId}><Copy />คัดลอก ID</Button>
+                </div>
+              </div>
+              <p className="mt-4 text-xs font-bold uppercase tracking-wide text-muted-foreground">เลขอ้างอิง</p>
               <p className="mt-2 break-all rounded-lg bg-muted p-3 font-mono text-sm font-bold text-primary">{createdReference}</p>
               <Button variant="outline" className="mt-3 w-full" onClick={copyReference}><Copy />คัดลอกเลขอ้างอิง</Button>
             </div>
           </div>
           <DialogFooter>
-            {LINE_ADD_FRIEND_URL ? <Button asChild className="bg-[#06C755] text-white hover:bg-[#05a648]"><Link href={LINE_ADD_FRIEND_URL} target="_blank" rel="noreferrer"><MessageCircle />เพิ่มเพื่อนทาง LINE<ExternalLink /></Link></Button> : <Button disabled>รอตั้งค่า LINE URL</Button>}
+            {LINE_ADD_FRIEND_URL ? <Button asChild className="bg-[#06C755] text-white hover:bg-[#05a648]"><Link href={LINE_ADD_FRIEND_URL} target="_blank" rel="noreferrer"><MessageCircle />เพิ่มเพื่อนทาง LINE<ExternalLink /></Link></Button> : <Button type="button" className="bg-[#06C755] text-white hover:bg-[#05a648]" onClick={copyLineId}><Copy />คัดลอก LINE ID</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

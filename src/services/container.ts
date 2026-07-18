@@ -1,6 +1,7 @@
 import { createDefaultDemoData } from "@/data/mock-data";
 import type { ServiceContainer } from "./contracts";
 import { MockAuthService } from "./mock-auth-service";
+import { MockStaffAccessService } from "./mock-staff-access-service";
 import {
   MockBranchRepository,
   MockCategoryRepository,
@@ -20,6 +21,7 @@ const defaults = createDefaultDemoData();
 function createMockServices(): ServiceContainer {
   return {
     auth: new MockAuthService(),
+    staffAccess: new MockStaffAccessService(),
     products: new MockProductRepository("products", () => defaults.products),
     orders: new MockOrderRepository("orders", () => defaults.orders),
     restaurants: new MockRestaurantRepository("restaurants", () => defaults.restaurants),

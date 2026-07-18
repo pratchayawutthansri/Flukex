@@ -306,7 +306,7 @@ export function IntegrationsPanel() {
     setConnected(next);
     void services.notifications.notify({
       title: `${next.includes(item.id) ? "เปิด" : "ปิด"} ${item.name}`,
-      message: "เปลี่ยนสถานะการจำลองแล้ว",
+      message: "อัปเดตสถานะ Connector แล้ว",
       channel: item.channel,
     });
     setSelected(null);
@@ -382,11 +382,11 @@ export function IntegrationsPanel() {
           <DialogHeader>
             <DialogTitle>{selected?.name}</DialogTitle>
             <DialogDescription>
-              Connector นี้ยังอยู่ในโหมดจำลองและไม่รับ API key หรือ token
+              Connector นี้ยังไม่เปิดใช้งานและยังไม่รองรับ API key หรือ token
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-xl border bg-muted p-5">
-            <p className="text-sm font-bold">การจำลองที่จะเกิดขึ้น</p>
+            <p className="text-sm font-bold">การทำงานของ Connector</p>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li>• อัปเดตสถานะใน UI</li>
               <li>• เพิ่มรายการใน Notification log</li>
@@ -398,7 +398,7 @@ export function IntegrationsPanel() {
             <Button variant="outline" onClick={() => setSelected(null)}>ยกเลิก</Button>
             {selected && (
               <Button onClick={() => toggleSimulation(selected)}>
-                {connected.includes(selected.id) ? "ปิดการจำลอง" : "เปิดการจำลอง"}
+                {connected.includes(selected.id) ? "ปิด Connector" : "เปิด Connector"}
               </Button>
             )}
           </DialogFooter>

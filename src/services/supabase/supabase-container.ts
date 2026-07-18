@@ -2,6 +2,7 @@ import type { ServiceContainer } from "../contracts";
 import { SupabaseNotificationService } from "../notification-service";
 import { SupabaseRealtimeService } from "../realtime-service";
 import { SupabaseAuthService } from "./supabase-auth-service";
+import { SupabaseStaffAccessService } from "./supabase-staff-access-service";
 import { createBrowserSupabaseClient } from "./supabase-client";
 import { SupabaseOrderRepository } from "./supabase-order-repository";
 import { SupabaseProductRepository } from "./supabase-product-repository";
@@ -19,6 +20,7 @@ export function createSupabaseServices(): ServiceContainer {
 
   return {
     auth: new SupabaseAuthService(),
+    staffAccess: new SupabaseStaffAccessService(),
     products: new SupabaseProductRepository(client),
     orders: new SupabaseOrderRepository(client),
     restaurants: new SupabaseRestaurantRepository(client),

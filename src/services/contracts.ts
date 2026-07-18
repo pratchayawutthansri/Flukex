@@ -9,6 +9,8 @@ import type {
   Product,
   Restaurant,
   RestaurantTable,
+  StaffJoinRequest,
+  StaffRole,
 } from "@/domain/types";
 
 export interface AuthCredentials {
@@ -19,6 +21,23 @@ export interface AuthCredentials {
 export interface RegistrationInput extends AuthCredentials {
   name: string;
   restaurantName: string;
+}
+
+export interface StaffAccessRequestInput extends RegistrationInput {
+  approverEmail: string;
+}
+
+export interface StaffAccessRequestReceipt {
+  id: string;
+  applicantEmail: string;
+  restaurantName: string;
+  status: StaffJoinRequest["status"];
+}
+
+export interface StaffAccessDecisionInput {
+  requestId: string;
+  role: StaffRole;
+  branchIds: string[];
 }
 
 export interface MemberPasswordResetInput {
@@ -40,6 +59,13 @@ export interface AuthService {
   getSession(): Promise<DemoSession | null>;
   resetPassword(email: string): Promise<void>;
   resetMemberPassword(input: MemberPasswordResetInput): Promise<TemporaryCredential>;
+}
+
+export interface StaffAccessService {
+  request(input: StaffAccessRequestInput): Promise<StaffAccessRequestReceipt>;
+  listPending(): Promise<StaffJoinRequest[]>;
+  approve(input: StaffAccessDecisionInput): Promise<DemoUser>;
+  reject(requestId: string): Promise<void>;
 }
 
 export interface Repository<T extends { id: string }> {
@@ -87,6 +113,7 @@ export interface NotificationService {
 
 export interface ServiceContainer {
   auth: AuthService;
+  staffAccess: StaffAccessService;
   products: ProductRepository;
   orders: OrderRepository;
   restaurants: RestaurantRepository;

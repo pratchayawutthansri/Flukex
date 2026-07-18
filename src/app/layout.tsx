@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AppProviders } from "@/components/app-providers";
 import "./globals.css";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://demo.flukexpos.com";
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://flukex.store";
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     locale: "th_TH",
     siteName: "Flukex POS",
     title: "Flukex POS — ร้านคล่อง ครัวชัด ยอดขายโต",
-    description: "POS ร้านอาหารพร้อม QR Ordering จอครัวเรียลไทม์ และรายงานยอดขาย ทดลองใช้งานฟรี",
+    description: "POS ร้านอาหารพร้อม QR Ordering จอครัวเรียลไทม์ และรายงานยอดขาย เริ่มใช้งานฟรี",
     url: appUrl,
   },
   twitter: { card: "summary_large_image", title: "Flukex POS", description: "ระบบจัดการร้านอาหารครบวงจร เริ่มใช้ฟรี" },

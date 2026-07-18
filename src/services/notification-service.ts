@@ -74,8 +74,8 @@ export class MockLineNotificationService extends BrowserNotificationService {}
 export class MockTelegramNotificationService extends BrowserNotificationService {}
 
 export class LineMessagingNotificationService implements NotificationService {
-  async notify(): Promise<void> { throw new Error("LINE Messaging API is disabled in demo mode"); }
+  async notify(): Promise<void> { throw new Error("LINE Messaging API ยังไม่ได้เปิดใช้งาน"); }
 }
 export class TelegramBotNotificationService implements NotificationService {
-  async notify(): Promise<void> { throw new Error("Telegram Bot API is disabled in demo mode"); }
+  async notify(): Promise<void> { throw new Error("Telegram Bot API ยังไม่ได้เปิดใช้งาน"); }
 }

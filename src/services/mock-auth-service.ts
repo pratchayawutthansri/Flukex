@@ -1,5 +1,5 @@
 import { DEMO_ACCOUNTS, DEMO_TENANT_ID } from "@/data/mock-data";
-import type { DemoSession } from "@/domain/types";
+import type { DemoSession, UserRole } from "@/domain/types";
 import type {
   AuthCredentials,
   AuthService,
@@ -9,7 +9,12 @@ import type {
 } from "./contracts";
 import { browserStorage, STORAGE_KEYS } from "./storage";
 
-interface RegisteredUser extends RegistrationInput { id: string; tenantId: string }
+export interface RegisteredUser extends RegistrationInput {
+  id: string;
+  tenantId?: string;
+  role?: UserRole;
+  status?: "ACTIVE" | "PENDING" | "REJECTED";
+}
 type PasswordOverrides = Record<string, string>;
 
 const wait = (duration = 350) => new Promise((resolve) => setTimeout(resolve, duration));
@@ -34,13 +39,16 @@ export class MockAuthService implements AuthService {
       .find((item) => item.email.toLowerCase() === email && item.password === credentials.password);
 
     if (!account && !registered) throw new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบข้อมูลที่ได้รับจากผู้ดูแล");
+    if (registered?.status === "PENDING") throw new Error("บัญชีพนักงานกำลังรอเจ้าของร้านหรือผู้จัดการอนุมัติ");
+    if (registered?.status === "REJECTED") throw new Error("คำขอเข้าร่วมร้านถูกปฏิเสธ กรุณาติดต่อเจ้าของร้านหรือผู้จัดการ");
+    if (registered && !registered.tenantId) throw new Error("บัญชีพนักงานยังไม่ได้เชื่อมกับร้านค้า");
 
     const session: DemoSession = {
       userId: registered?.id ?? `user_${account?.role.toLowerCase()}`,
       tenantId: registered?.tenantId ?? (account?.role === "PLATFORM_ADMIN" ? "platform_flukex" : DEMO_TENANT_ID),
       name: registered?.name ?? account?.name ?? email,
       email,
-      role: account?.role ?? "OWNER",
+      role: registered?.role ?? account?.role ?? "OWNER",
       restaurantName: registered?.restaurantName,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
@@ -51,8 +59,16 @@ export class MockAuthService implements AuthService {
   async register(input: RegistrationInput): Promise<DemoSession> {
     await wait(500);
     const users = browserStorage.get<RegisteredUser[]>(STORAGE_KEYS.registeredUsers, []);
-    if (users.some((user) => user.email === input.email)) throw new Error("อีเมลนี้ถูกลงทะเบียนในเดโมแล้ว");
-    const user = { ...input, id: `registered_${Date.now()}`, tenantId: `tenant_${Date.now()}` };
+    const normalizedEmail = input.email.trim().toLowerCase();
+    if (users.some((user) => user.email.toLowerCase() === normalizedEmail)) throw new Error("อีเมลนี้ถูกลงทะเบียนแล้ว");
+    const user: RegisteredUser = {
+      ...input,
+      email: normalizedEmail,
+      id: `registered_${Date.now()}`,
+      tenantId: `tenant_${Date.now()}`,
+      role: "OWNER",
+      status: "ACTIVE",
+    };
     browserStorage.set(STORAGE_KEYS.registeredUsers, [...users, user]);
     return this.login(input);
   }
@@ -100,6 +116,8 @@ export class MockAuthService implements AuthService {
             email,
             password: temporaryPassword,
             restaurantName: input.restaurantName,
+            role: "OWNER",
+            status: "ACTIVE",
           };
       const nextUsers = existingIndex >= 0
         ? users.map((user, index) => index === existingIndex ? registeredUser : user)

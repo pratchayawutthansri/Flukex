@@ -64,7 +64,7 @@ NEXT_PUBLIC_DEMO_REALTIME=broadcast-channel
 4. Install Command: `pnpm install`
 5. Build Command: `pnpm build`
 6. เพิ่ม environment variables ตาม `.env.example` โดยเปลี่ยน `NEXT_PUBLIC_APP_URL` เป็น production URL
-7. รัน Supabase migrations รวมถึง `0011_tenant_integrations.sql`
+7. รัน Supabase migrations ทุกไฟล์ตามลำดับจนถึง `0013_staff_join_requests.sql`
 8. สร้าง `INTEGRATION_ENCRYPTION_KEY` แบบสุ่มอย่างน้อย 32 ตัวอักษรและตั้งเฉพาะฝั่ง Server
 9. หากต้องการ Webhook กลางเพียงตัวเดียว สามารถตั้ง `DISCORD_WEBHOOK_URL` บน Hosting แทนการกรอกใน Dashboard
 10. Deploy และตรวจ `/robots.txt`, `/sitemap.xml`, Marketing pages และ noindex ของ `/order/...`

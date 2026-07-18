@@ -10,6 +10,7 @@ import { isTableTokenAvailable, normalizeTableToken } from "@/domain/qr-ordering
 import type { Branch, Category, DemoUser, NotificationLog, Order, OrderItem, OrderStatus, PlanId, Product, Restaurant, RestaurantTable, TableStatus } from "@/domain/types";
 import { createId } from "@/lib/utils";
 import { dataProvider, services } from "@/services/container";
+import type { RegisteredUser } from "@/services/mock-auth-service";
 import { browserStorage, STORAGE_KEYS } from "@/services/storage";
 
 function reportPersistError(description: string, error: unknown) {
@@ -261,10 +262,28 @@ export const useDemoStore = create<DemoStore>()(
           return;
         }
         set({ users: exists ? state.users.map((item) => item.id === scopedUser.id ? scopedUser : item) : [...state.users, scopedUser] });
+        if (dataProvider === "mock") {
+          const registeredUsers = browserStorage.get<RegisteredUser[]>(STORAGE_KEYS.registeredUsers, []);
+          browserStorage.set(
+            STORAGE_KEYS.registeredUsers,
+            registeredUsers.map((registered) => registered.id === scopedUser.id
+              ? { ...registered, role: scopedUser.role, tenantId: scopedUser.tenantId, status: "ACTIVE" }
+              : registered),
+          );
+        }
         if (dataProvider === "supabase") void services.users.save(scopedUser).catch((error) => reportPersistError("บันทึกข้อมูลพนักงานไม่สำเร็จ", error));
       },
       removeUser: (id) => {
         set((state) => ({ users: state.users.filter((user) => user.id !== id) }));
+        if (dataProvider === "mock") {
+          const registeredUsers = browserStorage.get<RegisteredUser[]>(STORAGE_KEYS.registeredUsers, []);
+          browserStorage.set(
+            STORAGE_KEYS.registeredUsers,
+            registeredUsers.map((registered) => registered.id === id
+              ? { ...registered, tenantId: undefined, role: undefined, status: "REJECTED" }
+              : registered),
+          );
+        }
         if (dataProvider === "supabase") void services.users.remove(id).catch((error) => reportPersistError("ลบพนักงานไม่สำเร็จ", error));
       },
       saveProduct: (product) => {

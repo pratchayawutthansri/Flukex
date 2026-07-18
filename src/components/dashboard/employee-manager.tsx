@@ -1,14 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
+  Clock3,
   Mail,
   Pencil,
   Plus,
   ShieldCheck,
   Trash2,
+  UserCheck,
   UserRound,
+  UserX,
   UsersRound,
 } from "lucide-react";
 import { useAuthSession } from "@/components/auth/auth-session-provider";
@@ -32,7 +35,8 @@ import {
   getAssignableEmployeeRoles,
   STAFF_ROLE_LABELS,
 } from "@/config/employee-permissions";
-import type { DemoUser, UserRole } from "@/domain/types";
+import { isWithinLimit } from "@/config/plans";
+import type { DemoUser, StaffJoinRequest, StaffRole, UserRole } from "@/domain/types";
 import { createId } from "@/lib/utils";
 import { services } from "@/services/container";
 import { useDemoStore } from "@/store/demo-store";
@@ -59,17 +63,44 @@ export function EmployeeManager() {
   const branches = useDemoStore((state) => state.branches);
   const saveUser = useDemoStore((state) => state.saveUser);
   const removeUser = useDemoStore((state) => state.removeUser);
+  const planId = useDemoStore((state) => state.planId);
   const actorRole = session?.role === "MANAGER" ? "MANAGER" : "OWNER";
   const assignableRoles = getAssignableEmployeeRoles(actorRole);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<EmployeeFormState>(EMPTY_FORM);
   const [formError, setFormError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DemoUser | null>(null);
+  const [joinRequests, setJoinRequests] = useState<StaffJoinRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [requestError, setRequestError] = useState("");
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [approvalTarget, setApprovalTarget] = useState<StaffJoinRequest | null>(null);
+  const [approvalRole, setApprovalRole] = useState<StaffRole>("CASHIER");
+  const [approvalBranches, setApprovalBranches] = useState<string[]>([]);
+  const [rejectTarget, setRejectTarget] = useState<StaffJoinRequest | null>(null);
 
   const branchNames = useMemo(
     () => new Map(branches.map((branch) => [branch.id, branch.name])),
     [branches],
   );
+
+  useEffect(() => {
+    if (!session || (session.role !== "OWNER" && session.role !== "MANAGER")) return;
+    let active = true;
+    void services.staffAccess.listPending()
+      .then((requests) => {
+        if (active) setJoinRequests(requests);
+      })
+      .catch((caught: unknown) => {
+        if (active) setRequestError(caught instanceof Error ? caught.message : "โหลดคำขอเข้าร่วมร้านไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (active) setRequestsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [session]);
 
   const openCreate = () => {
     setForm({
@@ -155,6 +186,70 @@ export function EmployeeManager() {
     setDeleteTarget(null);
   };
 
+  const openApproval = (request: StaffJoinRequest) => {
+    setApprovalTarget(request);
+    setApprovalRole((assignableRoles.includes("CASHIER") ? "CASHIER" : assignableRoles[0] ?? "CASHIER") as StaffRole);
+    setApprovalBranches(branches[0] ? [branches[0].id] : []);
+    setRequestError("");
+  };
+
+  const toggleApprovalBranch = (branchId: string) => {
+    setApprovalBranches((current) => current.includes(branchId)
+      ? current.filter((id) => id !== branchId)
+      : [...current, branchId]);
+  };
+
+  const approveJoinRequest = async () => {
+    if (!approvalTarget) return;
+    setRequestError("");
+    if (branches.length > 0 && approvalBranches.length === 0) {
+      setRequestError("กรุณาเลือกอย่างน้อย 1 สาขา");
+      return;
+    }
+    if (!isWithinLimit(planId, "maxUsers", users.length)) {
+      setRequestError("ถึงขีดจำกัดผู้ใช้ของแพ็กเกจแล้ว กรุณาเปลี่ยนแพ็กเกจก่อนอนุมัติพนักงาน");
+      return;
+    }
+    setRequestBusy(true);
+    try {
+      const user = await services.staffAccess.approve({
+        requestId: approvalTarget.id,
+        role: approvalRole,
+        branchIds: approvalBranches,
+      });
+      saveUser(user);
+      setJoinRequests((current) => current.filter((request) => request.id !== approvalTarget.id));
+      setApprovalTarget(null);
+      void services.notifications.notify({
+        title: "อนุมัติพนักงานแล้ว",
+        message: `${user.name} เข้าสู่ระบบด้วยบทบาท ${STAFF_ROLE_LABELS[user.role]} ได้แล้ว`,
+      });
+    } catch (caught) {
+      setRequestError(caught instanceof Error ? caught.message : "อนุมัติคำขอไม่สำเร็จ");
+    } finally {
+      setRequestBusy(false);
+    }
+  };
+
+  const rejectJoinRequest = async () => {
+    if (!rejectTarget) return;
+    setRequestBusy(true);
+    setRequestError("");
+    try {
+      await services.staffAccess.reject(rejectTarget.id);
+      setJoinRequests((current) => current.filter((request) => request.id !== rejectTarget.id));
+      void services.notifications.notify({
+        title: "ปฏิเสธคำขอแล้ว",
+        message: `ปฏิเสธคำขอของ ${rejectTarget.applicantName}`,
+      });
+      setRejectTarget(null);
+    } catch (caught) {
+      setRequestError(caught instanceof Error ? caught.message : "ปฏิเสธคำขอไม่สำเร็จ");
+    } finally {
+      setRequestBusy(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -189,13 +284,69 @@ export function EmployeeManager() {
             <UsersRound className="size-5" aria-hidden="true" />
           </span>
           <div>
-            <p className="font-semibold">พนักงานไม่ต้องสมัครสร้างร้านใหม่</p>
+            <p className="font-semibold">พนักงานไม่ต้องสร้างร้านใหม่</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              เจ้าของหรือผู้จัดการเพิ่มบัญชีจากหน้านี้ แล้วกำหนดบทบาทและสาขาให้
+              พนักงานสมัครแบบ “ขอเข้าร่วมร้าน” แล้วเจ้าของหรือผู้จัดการตรวจสอบและกำหนดสิทธิ์จากหน้านี้
             </p>
           </div>
         </Card>
       </div>
+
+      <Card className="mb-5 overflow-hidden">
+        <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700">
+              <Clock3 className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="font-bold">คำขอเข้าร่วมร้าน</h2>
+              <p className="mt-1 text-sm text-muted-foreground">ตรวจชื่อและอีเมลก่อนกำหนดบทบาท ห้ามมอบสิทธิ์เกินหน้าที่</p>
+            </div>
+          </div>
+          <Badge variant={joinRequests.length ? "warning" : "secondary"}>{joinRequests.length} คำขอ</Badge>
+        </div>
+
+        {requestError && (
+          <p role="alert" className="m-4 rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+            {requestError}
+          </p>
+        )}
+
+        {requestsLoading ? (
+          <div className="flex min-h-28 items-center justify-center gap-2 p-5 text-sm text-muted-foreground">
+            <Clock3 className="size-4 animate-pulse" />กำลังโหลดคำขอ...
+          </div>
+        ) : joinRequests.length === 0 ? (
+          <div className="p-5 text-sm text-muted-foreground">ยังไม่มีคำขอเข้าร่วมร้านที่รออนุมัติ</div>
+        ) : (
+          <div className="divide-y">
+            {joinRequests.map((request) => (
+              <article key={request.id} className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong>{request.applicantName}</strong>
+                    <Badge variant="warning">รออนุมัติ</Badge>
+                  </div>
+                  <p className="mt-1 flex items-center gap-2 break-all text-sm text-muted-foreground">
+                    <Mail className="size-4 shrink-0" aria-hidden="true" />{request.applicantEmail}
+                  </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    สมัครเข้าร่วม {request.restaurantName} · {new Date(request.createdAt).toLocaleString("th-TH")}
+                  </p>
+                </div>
+                <div className="grid shrink-0 grid-cols-2 gap-2">
+                  <Button type="button" variant="outline" onClick={() => setRejectTarget(request)}>
+                    <UserX />ปฏิเสธ
+                  </Button>
+                  <Button type="button" onClick={() => openApproval(request)}>
+                    <UserCheck />ตรวจและอนุมัติ
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
@@ -386,6 +537,86 @@ export function EmployeeManager() {
             <Button type="button" variant="destructive" onClick={confirmDelete}>
               <Trash2 />
               ลบพนักงาน
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(approvalTarget)} onOpenChange={(open) => !open && setApprovalTarget(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>อนุมัติ {approvalTarget?.applicantName}</DialogTitle>
+            <DialogDescription>
+              บัญชีนี้จะเข้าถึงเฉพาะร้านปัจจุบันตามบทบาทและสาขาที่คุณกำหนด
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div className="rounded-lg bg-muted p-4 text-sm">
+              <p className="font-semibold">{approvalTarget?.applicantEmail}</p>
+              <p className="mt-1 text-muted-foreground">ผู้สมัครระบุร้าน: {approvalTarget?.restaurantName}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="approval-role">บทบาทหลังอนุมัติ</Label>
+              <select
+                id="approval-role"
+                className="min-h-11 w-full rounded-lg border bg-card px-3"
+                value={approvalRole}
+                onChange={(event) => setApprovalRole(event.target.value as StaffRole)}
+              >
+                {assignableRoles.map((role) => (
+                  <option key={role} value={role}>{STAFF_ROLE_LABELS[role]}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">คำขอพนักงานไม่สามารถรับสิทธิ์เจ้าของร้านได้</p>
+            </div>
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-medium">สาขาที่เข้าถึงได้</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {branches.map((branch) => (
+                  <label key={branch.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border p-3 hover:bg-muted/50">
+                    <input
+                      type="checkbox"
+                      checked={approvalBranches.includes(branch.id)}
+                      onChange={() => toggleApprovalBranch(branch.id)}
+                      className="size-4 accent-primary"
+                    />
+                    <span className="text-sm font-medium">{branch.name}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {requestError && (
+              <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+                {requestError}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={requestBusy} onClick={() => setApprovalTarget(null)}>ยกเลิก</Button>
+            <Button type="button" disabled={requestBusy} onClick={approveJoinRequest}>
+              <UserCheck />{requestBusy ? "กำลังอนุมัติ..." : "อนุมัติและเปิดใช้งาน"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(rejectTarget)} onOpenChange={(open) => !open && setRejectTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ปฏิเสธคำขอเข้าร่วมร้าน?</DialogTitle>
+            <DialogDescription>
+              {rejectTarget ? `${rejectTarget.applicantName} จะยังไม่สามารถเข้าสู่ระบบร้านนี้ได้` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            {requestError && (
+              <p role="alert" className="mb-3 w-full rounded-lg bg-red-50 p-3 text-left text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+                {requestError}
+              </p>
+            )}
+            <Button type="button" variant="outline" disabled={requestBusy} onClick={() => setRejectTarget(null)}>ยกเลิก</Button>
+            <Button type="button" variant="destructive" disabled={requestBusy} onClick={rejectJoinRequest}>
+              <UserX />{requestBusy ? "กำลังดำเนินการ..." : "ยืนยันการปฏิเสธ"}
             </Button>
           </DialogFooter>
         </DialogContent>

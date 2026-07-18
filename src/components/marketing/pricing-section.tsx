@@ -29,7 +29,7 @@ export function PricingSection({ compact = false }: { compact?: boolean }) {
       </div>
       <div className="mt-6 text-center"><Button variant="ghost" asChild><Link href="/plan-comparison">ดูตารางเปรียบเทียบทุกฟีเจอร์ →</Link></Button></div>
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent><DialogHeader><DialogTitle>ยืนยันเลือกแผน {selected ? SUBSCRIPTION_PLANS[selected].name : ""}</DialogTitle><DialogDescription>เดโมนี้จะอัปเดตสถานะแผนใน Local Storage เท่านั้น ไม่มีการเรียกเก็บเงินจริง</DialogDescription></DialogHeader><div className="rounded-lg bg-muted p-4 text-sm"><strong>โหมดสาธิต</strong><p className="mt-1 text-muted-foreground">คุณสามารถเปลี่ยนแผนหรือรีเซ็ตข้อมูลได้ตลอดเวลาจากหน้า Subscription</p></div><DialogFooter><Button variant="outline" onClick={() => setSelected(null)}>ยกเลิก</Button><Button onClick={confirm}>ยืนยันแผนจำลอง</Button></DialogFooter></DialogContent>
+        <DialogContent><DialogHeader><DialogTitle>ยืนยันเลือกแผน {selected ? SUBSCRIPTION_PLANS[selected].name : ""}</DialogTitle><DialogDescription>ระบบจะอัปเดตแพ็กเกจและขีดจำกัดการใช้งานของร้านตามแผนที่เลือก</DialogDescription></DialogHeader><div className="rounded-lg bg-muted p-4 text-sm"><strong>การจัดการแพ็กเกจ</strong><p className="mt-1 text-muted-foreground">คุณสามารถตรวจสอบหรือเปลี่ยนแผนได้จากหน้าแพ็กเกจหลังเข้าสู่ระบบ</p></div><DialogFooter><Button variant="outline" onClick={() => setSelected(null)}>ยกเลิก</Button><Button onClick={confirm}>ยืนยันเลือกแผน</Button></DialogFooter></DialogContent>
       </Dialog>
     </>
   );

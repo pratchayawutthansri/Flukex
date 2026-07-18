@@ -28,7 +28,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     id: "free",
     name: "Free",
     priceMonthly: 0,
-    description: "ทดลองระบบครบ flow สำหรับร้านขนาดเล็ก",
+    description: "เริ่มต้นใช้งานระบบครบทุกขั้นตอนสำหรับร้านขนาดเล็ก",
     features: ["1 สาขา", "5 โต๊ะ / 20 เมนู", "ผู้ใช้ 3 คน", "รายงานพื้นฐาน", "มีแบรนด์ระบบ"],
     entitlements: {
       maxBranches: 1,

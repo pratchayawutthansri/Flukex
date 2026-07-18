@@ -1,6 +1,9 @@
 export type Locale = "th" | "en";
 export type PlanId = "free" | "starter" | "professional";
 export type UserRole = "OWNER" | "MANAGER" | "CASHIER" | "KITCHEN" | "BAR";
+export type StaffRole = Exclude<UserRole, "OWNER">;
+export type RegistrationAccountType = "OWNER" | "STAFF";
+export type StaffJoinRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type PlatformRole = "PLATFORM_ADMIN";
 export type SessionRole = UserRole | PlatformRole;
 export type Station = "KITCHEN" | "BAR";
@@ -20,6 +23,21 @@ export interface DemoUser extends TenantEntity {
   email: string;
   role: UserRole;
   branchIds: string[];
+}
+
+export interface StaffJoinRequest {
+  id: string;
+  tenantId: string;
+  applicantUserId: string;
+  applicantName: string;
+  applicantEmail: string;
+  restaurantName: string;
+  approverEmail: string;
+  status: StaffJoinRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
 }
 
 export interface DemoSession {

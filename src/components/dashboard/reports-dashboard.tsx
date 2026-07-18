@@ -95,7 +95,7 @@ export function ReportsDashboard() {
         <Card className="mt-5 p-8 text-center sm:p-12">
           <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-secondary text-primary"><PackageOpen aria-hidden="true" /></span>
           <h2 className="mt-4 text-xl font-bold">ยังไม่มีข้อมูลสำหรับออกรายงาน</h2>
-          <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">รายงานจะเริ่มคำนวณหลังจากร้านปิดบิลแรก ข้อมูลตัวอย่างของร้านเดโมจะไม่ถูกนำมาแสดงในบัญชีนี้</p>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">รายงานจะเริ่มคำนวณหลังจากร้านปิดบิลแรก และแสดงเฉพาะข้อมูลของร้านนี้</p>
           <Button className="mt-5" asChild><Link href="/pos">เปิด POS เพื่อเริ่มขาย</Link></Button>
         </Card>
       ) : (

@@ -40,7 +40,22 @@ export class SupabaseAuthService implements AuthService {
       .select("tenant_id, role")
       .eq("user_id", userId)
       .single();
-    if (membershipError || !membership) throw new Error("บัญชีนี้ยังไม่ได้เชื่อมกับร้านค้าใด");
+    if (membershipError || !membership) {
+      const { data: joinRequest } = await client
+        .from("staff_join_requests")
+        .select("status")
+        .eq("applicant_user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (joinRequest?.status === "PENDING") {
+        throw new Error("บัญชีพนักงานกำลังรอเจ้าของร้านหรือผู้จัดการอนุมัติ");
+      }
+      if (joinRequest?.status === "REJECTED") {
+        throw new Error("คำขอเข้าร่วมร้านถูกปฏิเสธ กรุณาติดต่อเจ้าของร้านหรือผู้จัดการ");
+      }
+      throw new Error("บัญชีนี้ยังไม่ได้เชื่อมกับร้านค้าใด");
+    }
 
     const { data: restaurant } = await client
       .from("restaurants")
@@ -68,7 +83,12 @@ export class SupabaseAuthService implements AuthService {
     if (error || !data.session || !data.user) {
       throw new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบข้อมูลที่ได้รับจากผู้ดูแล");
     }
-    return this.loadSession(client, data.user.id, data.session.expires_at);
+    try {
+      return await this.loadSession(client, data.user.id, data.session.expires_at);
+    } catch (caught) {
+      await client.auth.signOut();
+      throw caught;
+    }
   }
 
   async register(input: RegistrationInput): Promise<DemoSession> {

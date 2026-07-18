@@ -744,7 +744,7 @@ export function KdsDisplay({ station }: { station: Station }) {
                 <Button variant="outline" size="sm" asChild>
                   <Link href="/pos">
                     <Store aria-hidden="true" />
-                    สร้างออเดอร์ทดลอง
+                    สร้างออเดอร์ใหม่
                   </Link>
                 </Button>
                 <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">

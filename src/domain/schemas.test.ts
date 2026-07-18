@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { registrationSchema } from "./schemas";
+import { registrationSchema, staffRegistrationSchema } from "./schemas";
 
 const validRegistration = {
   name: "เจ้าของร้าน",
@@ -19,5 +19,17 @@ describe("registration schema", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.issues[0]).toMatchObject({ path: ["confirmPassword"], message: "รหัสผ่านทั้งสองช่องไม่ตรงกัน" });
+  });
+
+  it("requires an approver email for staff registration", () => {
+    expect(staffRegistrationSchema.safeParse({
+      ...validRegistration,
+      approverEmail: "owner@example.com",
+    }).success).toBe(true);
+
+    expect(staffRegistrationSchema.safeParse({
+      ...validRegistration,
+      approverEmail: "not-an-email",
+    }).success).toBe(false);
   });
 });

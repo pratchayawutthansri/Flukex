@@ -137,7 +137,7 @@ function Sidebar({ role, onNavigate }: { role: SessionRole; onNavigate?: () => v
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetOpen(false)}>ยกเลิก</Button>
-            <Button variant="destructive" onClick={() => { resetDemo(); setResetOpen(false); location.reload(); }}><RotateCcw />รีเซ็ตเดโม</Button>
+            <Button variant="destructive" onClick={() => { resetDemo(); setResetOpen(false); location.reload(); }}><RotateCcw />ยืนยันรีเซ็ตข้อมูล</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

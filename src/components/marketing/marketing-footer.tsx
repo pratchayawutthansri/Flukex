@@ -16,7 +16,7 @@ export function MarketingFooter() {
           {footerLinks.map((group) => <div key={group.title}><h2 className="mb-3 text-sm font-bold">{group.title}</h2><ul>{group.links.map(([label, href]) => <li key={href}><Link href={href} className="inline-flex min-h-11 min-w-11 items-center text-sm text-muted-foreground hover:text-primary">{label}</Link></li>)}</ul></div>)}
         </div>
       </div>
-      <div className="border-t px-4 py-5 text-center text-xs text-muted-foreground">© 2026 Flukex POS — เวอร์ชันสาธิต ใช้ข้อมูลจำลองเท่านั้น</div>
+      <div className="border-t px-4 py-5 text-center text-xs text-muted-foreground">© 2026 Flukex POS — สงวนลิขสิทธิ์</div>
     </footer>
   );
 }

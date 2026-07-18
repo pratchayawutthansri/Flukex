@@ -29,6 +29,7 @@ export const STORAGE_KEYS = {
   session: "flukex-pos:session",
   registeredUsers: "flukex-pos:registered-users",
   passwordOverrides: "flukex-pos:password-overrides",
+  staffJoinRequests: "flukex-pos:staff-join-requests",
   tenantDataPrefix: "flukex-pos:tenant:",
   repositoryPrefix: "flukex-pos:repository:",
   subscription: "flukex-pos:subscription",
