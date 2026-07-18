@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Banknote, BellRing, CheckCircle2, ClipboardList, Eye, LogOut, Monitor, QrCode, ReceiptText, Table2 } from "lucide-react";
+import { ArrowRight, Banknote, BellRing, CheckCircle2, ClipboardList, Eye, LogOut, Minus, Monitor, Pencil, Plus, QrCode, ReceiptText, Table2, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { useAuthSession } from "@/components/auth/auth-session-provider";
@@ -11,8 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { Order } from "@/domain/types";
-import { formatCurrency, formatDateTime, formatTime } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { calculateLineTotal, calculateOrderTotals, deriveOrderCalculationOptions } from "@/domain/calculations";
+import type { Order, OrderItem } from "@/domain/types";
+import { createId, formatCurrency, formatDateTime, formatTime } from "@/lib/utils";
 import { useDemoStore } from "@/store/demo-store";
 
 const statusLabel = {
@@ -27,12 +30,26 @@ export function CashierWorkspace() {
   const router = useRouter();
   const { session, signOut } = useAuthSession();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editItems, setEditItems] = useState<OrderItem[]>([]);
+  const [productToAdd, setProductToAdd] = useState("");
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
   const orders = useDemoStore((state) => state.orders);
+  const products = useDemoStore((state) => state.products);
+  const updateOrderItems = useDemoStore((state) => state.updateOrderItems);
   const updateOrderStatus = useDemoStore((state) => state.updateOrderStatus);
+  const updateTableStatus = useDemoStore((state) => state.updateTableStatus);
   const tables = useDemoStore((state) => state.tables);
   const restaurant = useDemoStore((state) => state.restaurants[0]);
   const branch = useDemoStore((state) => state.branches[0]);
   const selectedOrder = selectedOrderId ? orders.find((order) => order.id === selectedOrderId) ?? null : null;
+  const editingOrder = editingOrderId ? orders.find((order) => order.id === editingOrderId) ?? null : null;
+  const cancelOrder = cancelOrderId ? orders.find((order) => order.id === cancelOrderId) ?? null : null;
+  const availableProducts = products.filter((product) => product.isAvailable && !product.isSoldOut);
+  const editTotals = useMemo(() => calculateOrderTotals(
+    editItems,
+    editingOrder ? deriveOrderCalculationOptions(editingOrder) : {},
+  ), [editItems, editingOrder]);
   const firstTable = tables[0];
   const qrHref = restaurant && firstTable ? `/order/${restaurant.slug}/table/${firstTable.token}` : "/dashboard/tables";
   const paidOrders = orders.filter((order) => Boolean(order.paidAt));
@@ -52,6 +69,85 @@ export function CashierWorkspace() {
     toast.success(`ยืนยันรับออเดอร์ ${order.orderNumber} แล้ว`, {
       description: `${order.tableName} • ส่งรายการให้ครัวและบาร์แล้ว`,
     });
+  };
+
+  const startEditingOrder = (order: Order) => {
+    if (!["WAITING", "PREPARING"].includes(order.status)) {
+      toast.error("แก้ไขออเดอร์นี้ไม่ได้", { description: "แก้ไขได้เฉพาะออเดอร์ที่รอรับรายการหรือกำลังเตรียม" });
+      return;
+    }
+
+    setEditItems(order.items.map((item) => ({ ...item, modifiers: [...item.modifiers] })));
+    setProductToAdd("");
+    setSelectedOrderId(null);
+    setEditingOrderId(order.id);
+  };
+
+  const changeItemQuantity = (itemId: string, change: number) => {
+    setEditItems((items) => items.map((item) => item.id === itemId
+      ? { ...item, quantity: Math.max(1, item.quantity + change) }
+      : item));
+  };
+
+  const changeItemNote = (itemId: string, note: string) => {
+    setEditItems((items) => items.map((item) => item.id === itemId ? { ...item, note } : item));
+  };
+
+  const removeItem = (itemId: string) => {
+    setEditItems((items) => items.filter((item) => item.id !== itemId));
+  };
+
+  const addSelectedProduct = () => {
+    const product = availableProducts.find((item) => item.id === productToAdd);
+    if (!product || !editingOrder) return;
+
+    const itemStatus = editingOrder.status === "PREPARING" ? "PREPARING" : "WAITING";
+    setEditItems((items) => [...items, {
+      id: createId("item"),
+      productId: product.id,
+      productName: product.name,
+      station: product.station,
+      quantity: 1,
+      unitPrice: product.price,
+      modifiers: [],
+      status: itemStatus,
+    }]);
+    setProductToAdd("");
+  };
+
+  const saveEditedOrder = () => {
+    if (!editingOrder || editItems.length === 0) return;
+
+    updateOrderItems(editingOrder.id, editItems);
+    toast.success(`บันทึกออเดอร์ ${editingOrder.orderNumber} แล้ว`, {
+      description: `อัปเดตรายการและยอดสุทธิเป็น ${formatCurrency(editTotals.grandTotal)}`,
+    });
+    setEditingOrderId(null);
+  };
+
+  const openCancelConfirmation = (order: Order) => {
+    setSelectedOrderId(null);
+    setCancelOrderId(order.id);
+  };
+
+  const confirmCancelOrder = () => {
+    if (!cancelOrder || ["SERVED", "CANCELLED"].includes(cancelOrder.status)) return;
+
+    updateOrderStatus(cancelOrder.id, null, "CANCELLED");
+    const hasAnotherActiveOrder = orders.some((order) => (
+      order.id !== cancelOrder.id
+      && order.tableId === cancelOrder.tableId
+      && !["SERVED", "CANCELLED"].includes(order.status)
+    ));
+    if (!hasAnotherActiveOrder) updateTableStatus(cancelOrder.tableId, "AVAILABLE");
+
+    toast.success(`ยกเลิกออเดอร์ ${cancelOrder.orderNumber} แล้ว`, {
+      description: hasAnotherActiveOrder
+        ? `${cancelOrder.tableName} ยังมีออเดอร์อื่นที่กำลังดำเนินการ`
+        : `${cancelOrder.tableName} ถูกเปลี่ยนเป็นโต๊ะว่าง`,
+    });
+    setCancelOrderId(null);
+    setSelectedOrderId(null);
   };
 
   return (
@@ -220,18 +316,211 @@ export function CashierWorkspace() {
                 <div className="flex justify-between text-base font-bold"><span>ยอดสุทธิ</span><span>{formatCurrency(selectedOrder.totals.grandTotal)}</span></div>
               </div>
 
-              {selectedOrder.status === "WAITING" && (
-                <DialogFooter>
+              {!["SERVED", "CANCELLED"].includes(selectedOrder.status) && (
+                <DialogFooter className="grid gap-2 sm:grid-cols-2">
+                  {["WAITING", "PREPARING"].includes(selectedOrder.status) && (
+                    <Button
+                      variant="outline"
+                      className="min-h-12"
+                      onClick={() => startEditingOrder(selectedOrder)}
+                    >
+                      <Pencil />
+                      แก้ไขออเดอร์
+                    </Button>
+                  )}
+                  <Button
+                    variant="destructive"
+                    className="min-h-12"
+                    onClick={() => openCancelConfirmation(selectedOrder)}
+                  >
+                    <XCircle />
+                    ยกเลิกออเดอร์
+                  </Button>
+                  {selectedOrder.status === "WAITING" && (
                   <Button
                     size="lg"
-                    className="min-h-12 w-full"
+                    className="min-h-12 sm:col-span-2"
                     onClick={() => acceptOrder(selectedOrder)}
                   >
                     <CheckCircle2 />
                     ยืนยันรับออเดอร์
                   </Button>
+                  )}
                 </DialogFooter>
               )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(editingOrder)} onOpenChange={(open) => !open && setEditingOrderId(null)}>
+        <DialogContent className="max-w-2xl">
+          {editingOrder && (
+            <>
+              <DialogHeader>
+                <DialogTitle>แก้ไขออเดอร์ {editingOrder.orderNumber}</DialogTitle>
+                <DialogDescription>
+                  {editingOrder.tableName} · ปรับรายการ จำนวน และหมายเหตุ จากนั้นตรวจยอดก่อนบันทึก
+                </DialogDescription>
+              </DialogHeader>
+
+              {editingOrder.paidAt && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+                  ออเดอร์นี้ชำระเงินแล้ว ยอดชำระจะถูกปรับตามรายการใหม่ โปรดตรวจสอบเงินทอนหรือยอดคืนกับลูกค้า
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="cashier-add-product">เพิ่มสินค้าในออเดอร์</Label>
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <select
+                    id="cashier-add-product"
+                    className="min-h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-base shadow-sm focus-visible:border-ring md:text-sm"
+                    value={productToAdd}
+                    onChange={(event) => setProductToAdd(event.target.value)}
+                  >
+                    <option value="">เลือกสินค้าที่พร้อมขาย</option>
+                    {availableProducts.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} · {formatCurrency(product.price)}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    disabled={!productToAdd}
+                    onClick={addSelectedProduct}
+                  >
+                    <Plus />
+                    เพิ่มสินค้า
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3" aria-label="รายการสินค้าในออเดอร์">
+                {editItems.map((item) => (
+                  <div key={item.id} className="rounded-xl border bg-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{item.productName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatCurrency(item.unitPrice)} ต่อรายการ
+                          {item.modifiers.length > 0 && ` · ${item.modifiers.map((modifier) => modifier.name).join(", ")}`}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => removeItem(item.id)}
+                        aria-label={`ลบ ${item.productName} ออกจากออเดอร์`}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-end">
+                      <div>
+                        <Label className="mb-2 block">จำนวน</Label>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            disabled={item.quantity <= 1}
+                            onClick={() => changeItemQuantity(item.id, -1)}
+                            aria-label={`ลดจำนวน ${item.productName}`}
+                          >
+                            <Minus />
+                          </Button>
+                          <output className="min-w-8 text-center font-bold" aria-label={`จำนวน ${item.productName}`}>
+                            {item.quantity}
+                          </output>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => changeItemQuantity(item.id, 1)}
+                            aria-label={`เพิ่มจำนวน ${item.productName}`}
+                          >
+                            <Plus />
+                          </Button>
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor={`note-${item.id}`} className="mb-2 block">หมายเหตุถึงครัวหรือบาร์</Label>
+                        <Textarea
+                          id={`note-${item.id}`}
+                          className="min-h-11"
+                          value={item.note ?? ""}
+                          onChange={(event) => changeItemNote(item.id, event.target.value)}
+                          placeholder="เช่น ไม่เผ็ด ไม่ใส่ผัก"
+                        />
+                      </div>
+                      <p className="pb-3 text-right font-bold">{formatCurrency(calculateLineTotal(item))}</p>
+                    </div>
+                  </div>
+                ))}
+
+                {editItems.length === 0 && (
+                  <div className="rounded-xl border border-dashed p-6 text-center">
+                    <p className="font-semibold">ออเดอร์ต้องมีสินค้าอย่างน้อย 1 รายการ</p>
+                    <p className="mt-1 text-sm text-muted-foreground">เลือกสินค้าด้านบนเพื่อเพิ่มกลับเข้าออเดอร์</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl bg-muted p-4 text-sm" aria-live="polite">
+                <div className="flex justify-between text-muted-foreground"><span>ยอดรวมสินค้า</span><span>{formatCurrency(editTotals.subtotal)}</span></div>
+                {editTotals.discount > 0 && <div className="mt-1 flex justify-between text-muted-foreground"><span>ส่วนลดเดิม</span><span>-{formatCurrency(editTotals.discount)}</span></div>}
+                <div className="mt-1 flex justify-between text-muted-foreground"><span>ค่าบริการ</span><span>{formatCurrency(editTotals.serviceCharge)}</span></div>
+                <div className="mt-1 flex justify-between text-muted-foreground"><span>VAT</span><span>{formatCurrency(editTotals.vat)}</span></div>
+                <div className="mt-2 flex justify-between border-t pt-2 text-base font-bold"><span>ยอดสุทธิใหม่</span><span>{formatCurrency(editTotals.grandTotal)}</span></div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" className="min-h-12" onClick={() => setEditingOrderId(null)}>
+                  ไม่บันทึก
+                </Button>
+                <Button type="button" className="min-h-12" disabled={editItems.length === 0} onClick={saveEditedOrder}>
+                  <CheckCircle2 />
+                  บันทึกการแก้ไข
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(cancelOrder)} onOpenChange={(open) => !open && setCancelOrderId(null)}>
+        <DialogContent>
+          {cancelOrder && (
+            <>
+              <DialogHeader>
+                <DialogTitle>ยืนยันยกเลิกออเดอร์ {cancelOrder.orderNumber}</DialogTitle>
+                <DialogDescription>
+                  {cancelOrder.tableName} · ยอดสุทธิ {formatCurrency(cancelOrder.totals.grandTotal)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-sm">
+                <p className="font-semibold text-destructive">การดำเนินการนี้ย้อนกลับไม่ได้จากหน้าแคชเชียร์</p>
+                <p className="mt-1 leading-6 text-muted-foreground">
+                  รายการทั้งหมดจะถูกยกเลิกและสถานะจะอัปเดตไปยังครัว บาร์ และหน้าติดตามออเดอร์ทันที
+                  {cancelOrder.paidAt && " ออเดอร์นี้ชำระเงินแล้ว กรุณาดำเนินการคืนเงินให้ลูกค้าตามขั้นตอนของร้าน"}
+                </p>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" className="min-h-12" onClick={() => setCancelOrderId(null)}>
+                  กลับไปตรวจสอบ
+                </Button>
+                <Button type="button" variant="destructive" className="min-h-12" onClick={confirmCancelOrder}>
+                  <XCircle />
+                  ยืนยันยกเลิกออเดอร์
+                </Button>
+              </DialogFooter>
             </>
           )}
         </DialogContent>

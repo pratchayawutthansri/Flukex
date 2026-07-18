@@ -1,4 +1,4 @@
-import type { OrderItem, OrderTotals } from "@/domain/types";
+import type { Order, OrderItem, OrderTotals } from "@/domain/types";
 
 export interface CalculationOptions {
   discountType?: "PERCENT" | "FIXED";
@@ -35,4 +35,23 @@ export function calculateOrderTotals(items: OrderItem[], options: CalculationOpt
   const grandTotal = roundMoney(options.pricesIncludeVat ? taxableBase : taxableBase + vat);
 
   return { subtotal, discount, serviceCharge, vat, grandTotal };
+}
+
+export function deriveOrderCalculationOptions(order: Pick<Order, "totals">): CalculationOptions {
+  const { totals } = order;
+  const afterDiscount = Math.max(totals.subtotal - totals.discount, 0);
+  const taxableBase = afterDiscount + totals.serviceCharge;
+  const exclusiveGrandTotal = taxableBase + totals.vat;
+  const pricesIncludeVat = Math.abs(totals.grandTotal - taxableBase) <= Math.abs(totals.grandTotal - exclusiveGrandTotal);
+  const serviceChargeRate = afterDiscount > 0 ? totals.serviceCharge / afterDiscount * 100 : 0;
+  const vatBase = pricesIncludeVat ? taxableBase - totals.vat : taxableBase;
+  const vatRate = vatBase > 0 ? totals.vat / vatBase * 100 : 0;
+
+  return {
+    discountType: "FIXED",
+    discountValue: totals.discount,
+    serviceChargeRate,
+    vatRate,
+    pricesIncludeVat,
+  };
 }

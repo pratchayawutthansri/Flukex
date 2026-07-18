@@ -5,7 +5,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { toast } from "sonner";
 import { getEntitlements, isWithinLimit } from "@/config/plans";
 import { createDefaultDemoData, createNewTenantData, DEMO_TENANT_ID, type DemoData } from "@/data/mock-data";
-import type { Branch, Category, DemoUser, NotificationLog, Order, OrderStatus, PlanId, Product, Restaurant, RestaurantTable, TableStatus } from "@/domain/types";
+import { calculateOrderTotals, deriveOrderCalculationOptions } from "@/domain/calculations";
+import type { Branch, Category, DemoUser, NotificationLog, Order, OrderItem, OrderStatus, PlanId, Product, Restaurant, RestaurantTable, TableStatus } from "@/domain/types";
 import { createId } from "@/lib/utils";
 import { dataProvider, services } from "@/services/container";
 import { browserStorage, STORAGE_KEYS } from "@/services/storage";
@@ -39,6 +40,7 @@ interface DemoStore extends DemoData {
   selectPlan: (planId: PlanId) => void;
   updateCommerceSettings: (settings: Partial<DemoStore["commerceSettings"]>) => void;
   addOrder: (order: Order) => void;
+  updateOrderItems: (orderId: string, items: OrderItem[]) => void;
   updateOrderStatus: (orderId: string, itemId: string | null, status: OrderStatus) => void;
   updateTableStatus: (tableId: string, status: TableStatus) => void;
   saveRestaurant: (restaurant: Restaurant) => void;
@@ -169,6 +171,40 @@ export const useDemoStore = create<DemoStore>()(
         }));
         if (dataProvider === "supabase") void services.orders.save(scopedOrder).catch((error) => reportPersistError("บันทึกออเดอร์ไม่สำเร็จ", error));
         services.realtime.publish({ type: "ORDER_CREATED", tenantId, payload: scopedOrder, occurredAt: new Date().toISOString() });
+      },
+      updateOrderItems: (orderId, items) => {
+        const state = get();
+        const existing = state.orders.find((order) => order.id === orderId);
+        const hasInvalidQuantity = items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1);
+        if (
+          !existing
+          || existing.tenantId !== state.activeTenantId
+          || !["WAITING", "PREPARING"].includes(existing.status)
+          || items.length === 0
+          || hasInvalidQuantity
+        ) return;
+
+        const updatedAt = new Date().toISOString();
+        const totals = calculateOrderTotals(items, deriveOrderCalculationOptions(existing));
+        const updated: Order = {
+          ...existing,
+          items: items.map((item) => ({ ...item, modifiers: [...item.modifiers] })),
+          totals,
+          updatedAt,
+        };
+
+        set((current) => ({
+          orders: current.orders.map((order) => order.id === orderId ? updated : order),
+        }));
+        if (dataProvider === "supabase") {
+          void services.orders.save(updated).catch((error) => reportPersistError("อัปเดตรายการออเดอร์ไม่สำเร็จ", error));
+        }
+        services.realtime.publish({
+          type: "ORDER_UPDATED",
+          tenantId: state.activeTenantId,
+          payload: updated,
+          occurredAt: updatedAt,
+        });
       },
       updateOrderStatus: (orderId, itemId, status) => {
         set((state) => ({
