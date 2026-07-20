@@ -46,6 +46,7 @@ export function RegisterForm() {
   const [contactPlan, setContactPlan] = useState<PlanId | null>(null);
   const [lineCopied, setLineCopied] = useState(false);
   const [staffReceipt, setStaffReceipt] = useState<StaffAccessRequestReceipt | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -66,6 +67,11 @@ export function RegisterForm() {
   const createAccount = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+
+    if (!acceptedTerms) {
+      setError("กรุณายอมรับข้อกำหนดการใช้งานและนโยบายความเป็นส่วนตัวก่อนดำเนินการต่อ");
+      return;
+    }
 
     if (accountType === "STAFF") {
       const parsed = staffRegistrationSchema.safeParse(form);
@@ -273,6 +279,22 @@ export function RegisterForm() {
             {showPasswords ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
             {showPasswords ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่านทั้งสองช่อง"}
           </button>
+
+          <label className="flex items-start gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={(event) => setAcceptedTerms(event.target.checked)}
+              className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
+              required
+            />
+            <span>
+              ฉันได้อ่านและยอมรับ{" "}
+              <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline">ข้อกำหนดการใช้งาน</Link>
+              {" "}และ{" "}
+              <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline">นโยบายความเป็นส่วนตัว</Link>
+            </span>
+          </label>
 
           {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{error}</p>}
           <Button className="w-full" type="submit" disabled={loading}>
